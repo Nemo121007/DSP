@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import math
 
@@ -10,7 +12,10 @@ B = 0.2    # Расстояние от центра до колеса
 
 # --- Параметры шума ---
 # Шум процесса (неопределенность модели движения)
-Q = np.diag([0.01, 0.01, np.deg2rad(1.0)])**2
+# Q = np.diag([0.01, 0.01, np.deg2rad(1.0)])**2
+# Шум процесса РАВЕН НУЛЮ, если модель считается идеальной
+Q = np.zeros((3, 3))
+
 # Шум измерений (точность сенсоров)
 R = np.diag([0.1, 0.1, np.deg2rad(5.0)])**2
 
