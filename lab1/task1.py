@@ -1,16 +1,112 @@
 import numpy as np
 import matplotlib
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
-import math
 
-# --- Параметры симуляции ---
+matplotlib.use('TkAgg')
+
+import matplotlib.pyplot as plt
+
+
+def generate_trajectory_and_measurements(
+    *,
+    T: float,
+    num_steps: int,
+    x0: np.ndarray,
+    W_L: float,
+    W_R: float,
+    B: float,
+    R: np.ndarray,
+    seed: int | None = None,
+    control_fn=None,
+):
+    """Генерирует истинную траекторию и зашумлённые измерения.
+    Args:
+        T: Шаг дискретизации (с)
+        num_steps: Количество шагов для генерации
+        x0: Начальное истинное состояние [x, y, theta]
+        W_L: Радиус левого колеса (м)
+        W_R: Радиус правого колеса (м)
+        B: Расстояние от центра до колеса (м)
+        R: Ковариационная матрица шума измерений (3x3)
+        seed: Сид для генератора случайных чисел (для воспроизводимости)
+        control_fn: Функция управления, которая принимает (i, t) и возвращает (u_L, u_R).
+                    Если None, будет использоваться функция по умолчанию.
+    Return:
+        history_true: (N, 3) [x, y, theta] - истинные состояния в начале каждого шага
+        history_measurements: (N, 3) - наблюдаемые состояния
+        controls: (N, 2) [u_L, u_R] - управляющие воздействия на каждом шаге
+        times: (N) - временные метки для каждого шага
+    Note:
+        - R используется как ковариация измерения; шум генерируется через multivariate_normal.
+        - Семантика шага: в историю на шаге i записывается состояние *в начале* шага,
+          затем применяется модель движения для перехода к следующему шагу.
+    """
+    if control_fn is None:
+        def control_fn(i: int, t: float):
+            # Управление (угловые скорости колес)
+            u_L = 10.0 * np.sin(2 * t)
+            u_R = 10.0 * np.cos(2 * t)
+            return u_L, u_R
+
+    if T <= 0:
+        raise ValueError("T <= 0")
+    if num_steps < 0:
+        raise ValueError("num_steps < 0")
+
+    x0 = np.asarray(x0, dtype=float).reshape(3,)
+    R = np.asarray(R, dtype=float)
+    if R.shape != (3, 3):
+        raise ValueError("R должен иметь размерность (3, 3)")
+
+    rng = np.random.default_rng(seed)
+
+    true_state = x0.copy()
+    history_true: list[np.ndarray] = []
+    history_measurements: list[np.ndarray] = []
+    controls: list[np.ndarray] = []
+    times: list[float] = []
+
+    for i in range(num_steps):
+        t = i * T
+        u_L, u_R = control_fn(i, t)
+
+        # Сохраняем истинное состояние (в начале шага)
+        history_true.append(true_state.copy())
+        controls.append(np.array([u_L, u_R], dtype=float))
+        times.append(t)
+
+        # Генерируем зашумленные измерения
+        noise = rng.multivariate_normal(mean=np.zeros(3), cov=R)
+        measurement = true_state + noise
+        history_measurements.append(measurement)
+
+        # Обновление истинного состояния для следующего шага
+        s_L = W_L * u_L
+        s_R = W_R * u_R
+        s_t = (s_R + s_L) / 2.0
+        s_r = (s_R - s_L) / (2.0 * B)
+
+        r = true_state[2]
+        true_state = np.array([
+            true_state[0] + T * s_t * np.cos(r) - 0.5 * T**2 * s_t * s_r * np.sin(r),
+            true_state[1] + T * s_t * np.sin(r) + 0.5 * T**2 * s_t * s_r * np.cos(r),
+            true_state[2] + T * s_r
+        ])
+
+    return (
+        np.asarray(history_true),
+        np.asarray(history_measurements),
+        np.asarray(controls),
+        np.asarray(times),
+    )
+
+
+# Параметры симуляции 
 T = 0.1  # Шаг дискретизации (с)
 W_L = 0.05  # Радиус левого колеса (м)
 W_R = 0.05  # Радиус правого колеса (м)
 B = 0.2    # Расстояние от центра до колеса
 
-# --- Параметры шума ---
+# Параметры шума 
 # Шум процесса (неопределенность модели движения)
 # Q = np.diag([0.01, 0.01, np.deg2rad(1.0)])**2
 # Шум процесса РАВЕН НУЛЮ, если модель считается идеальной
@@ -19,39 +115,32 @@ Q = np.zeros((3, 3))
 # Шум измерений (точность сенсоров)
 R = np.diag([0.1, 0.1, np.deg2rad(5.0)])**2
 
-# --- Инициализация ---
+# Инициализация 
 # Начальное истинное состояние [x, y, theta]
-true_state = np.array([0, 0, 0.0])
-# Начальная оценка состояния EKF (можем начать с первого измерения или с нуля)
+true_state_0 = np.array([0, 0, 0.0])
+# Начальная оценка состояния EKF
 estimated_state = np.array([0, 0, 0.0])
 # Начальная ковариационная матрица (высокая неопределенность)
 P = np.diag([1.0, 1.0, np.deg2rad(50.0)])**2
 
-# Списки для хранения истории
-history_true = []
-history_measurements = []
-history_estimated = []
-
-# --- Генерация траектории и измерений ---
-# Создадим траекторию в виде восьмерки
+# Генерация траектории и измерений 
 num_steps = 300
+history_true, history_measurements, controls, times = generate_trajectory_and_measurements(
+    T=T,
+    num_steps=num_steps,
+    x0=true_state_0,
+    W_L=W_L,
+    W_R=W_R,
+    B=B,
+    R=R,
+    seed=None,
+)
+
+# Прогон EKF по сгенерированным данным 
+history_estimated = []
 for i in range(num_steps):
-    # Управление (угловые скорости колес) для создания восьмерки
-    t = i * T
-    u_L = 10.0 * np.sin(2 * t)
-    u_R = 10.0 * np.cos(2 * t)
-
-    # Сохраняем истинное состояние
-    history_true.append(true_state.copy())
-
-    # Генерируем зашумленные измерения
-    w_x = np.random.normal(0, R[0, 0]**0.5)
-    w_y = np.random.normal(0, R[1, 1]**0.5)
-    w_r = np.random.normal(0, R[2, 2]**0.5)
-    measurement = true_state + np.array([w_x, w_y, w_r])
-    history_measurements.append(measurement)
-
-    # --- Расширенный фильтр Калмана (EKF) ---
+    u_L, u_R = controls[i]
+    measurement = history_measurements[i]
 
     # ЭТАП ПРЕДСКАЗАНИЯ
 
@@ -67,9 +156,9 @@ for i in range(num_steps):
         estimated_state[0] + T * s_t * np.cos(r) - 0.5 * T**2 * s_t * s_r * np.sin(r),
         estimated_state[1] + T * s_t * np.sin(r) + 0.5 * T**2 * s_t * s_r * np.cos(r),
         estimated_state[2] + T * s_r
-    ])
+    ])      # (7)
 
-    # Вычисление матрицы Якоби F
+    # Вычисление матрицы Якоби
     F = np.array([
         [1, 0, -T * s_t * np.sin(r) - 0.5 * T**2 * s_t * s_r * np.cos(r)],
         [0, 1,  T * s_t * np.cos(r) - 0.5 * T**2 * s_t * s_r * np.sin(r)],
@@ -77,41 +166,32 @@ for i in range(num_steps):
     ])
 
     # Предсказание ковариации
-    P_pred = F @ P @ F.T + Q
+    P_pred = F @ P @ F.T + Q    # (8)
 
     # ЭТАП КОРРЕКЦИИ
 
     # Усиление Калмана
     # H - единичная матрица, поэтому S = P_pred + R
-    S = P_pred + R
-    K = P_pred @ np.linalg.inv(S)
+    S = P_pred + R      # (9)
+    K = P_pred @ np.linalg.inv(S)   # (10)
 
     # Обновление состояния с помощью измерения
-    estimated_state = state_pred + K @ (measurement - state_pred)
+    estimated_state = state_pred + K @ (measurement - state_pred)   # (11)
 
     # Обновление ковариации
     # I - K*H = I - K
-    P = (np.eye(3) - K) @ P_pred
+    P = P_pred - K @ S @ K.T
 
     # Сохраняем оценку
     history_estimated.append(estimated_state.copy())
 
-    # --- Обновление истинного состояния для следующего шага ---
-    true_state = np.array([
-        true_state[0] + T * s_t * np.cos(true_state[2]) - 0.5 * T**2 * s_t * s_r * np.sin(true_state[2]),
-        true_state[1] + T * s_t * np.sin(true_state[2]) + 0.5 * T**2 * s_t * s_r * np.cos(true_state[2]),
-        true_state[2] + T * s_r
-    ])
-
-
-# --- 6. Визуализация результатов ---
-history_true = np.array(history_true)
-history_measurements = np.array(history_measurements)
+# Визуализация результатов
 history_estimated = np.array(history_estimated)
 
 plt.figure(figsize=(12, 8))
 plt.plot(history_true[:, 0], history_true[:, 1], 'g-', label='Истинная траектория')
-plt.plot(history_measurements[:, 0], history_measurements[:, 1], 'k.', label='Зашумленные измерения', markersize=4, alpha=0.7)
+plt.plot(history_measurements[:, 0], history_measurements[:, 1], 'k.',
+         label='Зашумленные измерения', markersize=4, alpha=0.7)
 plt.plot(history_estimated[:, 0], history_estimated[:, 1], 'b-', label='Траектория, оцененная EKF')
 plt.title('Отслеживание положения мобильного робота с помощью EKF')
 plt.xlabel('Координата X (м)')
@@ -123,13 +203,23 @@ plt.show()
 
 # Визуализация ошибки
 error = history_estimated - history_true
-plt.figure(figsize=(12, 6))
-plt.plot(error[:, 0], label='Ошибка по X')
-plt.plot(error[:, 1], label='Ошибка по Y')
-plt.plot(np.rad2deg(error[:, 2]), label='Ошибка по ориентации (градусы)')
-plt.title('Ошибка оценки EKF')
-plt.xlabel('Шаг времени')
-plt.ylabel('Ошибка')
-plt.legend()
-plt.grid(True)
+
+fig, (ax_xy, ax_theta) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+
+# Ошибки по координатам
+ax_xy.plot(error[:, 0], label='Ошибка по X')
+ax_xy.plot(error[:, 1], label='Ошибка по Y')
+ax_xy.set_title('Ошибка оценки EKF')
+ax_xy.set_ylabel('Ошибка (м)')
+ax_xy.legend()
+ax_xy.grid(True)
+
+# Ошибка по ориентации (в градусах)
+ax_theta.plot(np.rad2deg(error[:, 2]), label='Ошибка по ориентации (градусы)')
+ax_theta.set_xlabel('Шаг времени')
+ax_theta.set_ylabel('Ошибка (градусы)')
+ax_theta.legend()
+ax_theta.grid(True)
+
+plt.tight_layout()
 plt.show()
