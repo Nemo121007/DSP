@@ -31,7 +31,7 @@ def generate_trajectory_and_measurements(
         control_fn: Функция управления, которая принимает (i, t) и возвращает (u_L, u_R).
                     Если None, будет использоваться функция по умолчанию.
     Return:
-        history_true: (N, 3) [x, y, theta] - истинные состояния в начале каждого шага
+        history_true: (N, 3) [x, y, r] - истинные состояния в начале каждого шага
         history_measurements: (N, 3) - наблюдаемые состояния
         controls: (N, 2) [u_L, u_R] - управляющие воздействия на каждом шаге
         times: (N) - временные метки для каждого шага
@@ -116,7 +116,7 @@ Q = np.zeros((3, 3))
 R = np.diag([0.1, 0.1, np.deg2rad(5.0)])**2
 
 # Инициализация 
-# Начальное истинное состояние [x, y, theta]
+# Начальное истинное состояние [x, y, r]
 true_state_0 = np.array([0, 0, 0.0])
 # Начальная оценка состояния EKF
 estimated_state = np.array([0, 0, 0.0])
@@ -156,31 +156,30 @@ for i in range(num_steps):
         estimated_state[0] + T * s_t * np.cos(r) - 0.5 * T**2 * s_t * s_r * np.sin(r),
         estimated_state[1] + T * s_t * np.sin(r) + 0.5 * T**2 * s_t * s_r * np.cos(r),
         estimated_state[2] + T * s_r
-    ])      # (7)
+    ])      # (7), (31)
 
     # Вычисление матрицы Якоби
     F = np.array([
         [1, 0, -T * s_t * np.sin(r) - 0.5 * T**2 * s_t * s_r * np.cos(r)],
         [0, 1,  T * s_t * np.cos(r) - 0.5 * T**2 * s_t * s_r * np.sin(r)],
         [0, 0, 1]
-    ])
+    ])      # (25)
 
     # Предсказание ковариации
-    P_pred = F @ P @ F.T + Q    # (8)
+    P_pred = F @ P @ F.T + Q    # (8), (32)
 
     # ЭТАП КОРРЕКЦИИ
 
     # Усиление Калмана
     # H - единичная матрица, поэтому S = P_pred + R
-    S = P_pred + R      # (9)
-    K = P_pred @ np.linalg.inv(S)   # (10)
+    S = P_pred + R      # (9), (33)
+    K = P_pred @ np.linalg.inv(S)   # (10), (34)
 
     # Обновление состояния с помощью измерения
-    estimated_state = state_pred + K @ (measurement - state_pred)   # (11)
+    estimated_state = state_pred + K @ (measurement - state_pred)   # (11), (35)
 
     # Обновление ковариации
-    # I - K*H = I - K
-    P = P_pred - K @ S @ K.T
+    P = P_pred - K @ S @ K.T    # (12), (36)
 
     # Сохраняем оценку
     history_estimated.append(estimated_state.copy())
