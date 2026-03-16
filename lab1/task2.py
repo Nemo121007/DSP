@@ -8,11 +8,18 @@ import matplotlib.pyplot as plt
 # Utils
 # =========================
 
-def wrap_to_pi(theta):
-    return (theta + np.pi) % (2 * np.pi) - np.pi
+def wrap_to_pi(theta) -> float:
+    """
+    Нормализует угол(ы) в диапазон [-pi, pi].
+
+    """
+    return float((theta + np.pi) % (2 * np.pi) - np.pi)
 
 
-def make_spd(P):
+def make_spd(P: np.NDarray) -> np.ndarray:
+    """
+    Приводит матрицу к виду симметричной положительно определенной.
+    """
     P = 0.5 * (P + P.T)
 
     eigvals, eigvecs = np.linalg.eigh(P)
@@ -26,6 +33,12 @@ def make_spd(P):
 # =========================
 
 def motion_model(state, u):
+    """
+    Модель движения в виде [dr1, dt, dr2]
+        - dr1 - поворот перед движением
+        - dt - пройденное расстояние
+        - dr2 - поворот после завершения движения
+    """
     x, y, theta = state
     dr1, dt, dr2 = u
 
@@ -37,6 +50,9 @@ def motion_model(state, u):
 
 
 def jacobian_motion(state, u):
+    """
+    Якобиан
+    """
     _, _, theta = state
     dr1, dt, _ = u
 

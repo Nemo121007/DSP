@@ -1,9 +1,8 @@
 import numpy as np
 import matplotlib
+import matplotlib.pyplot as plt
 
 matplotlib.use('TkAgg')
-
-import matplotlib.pyplot as plt
 
 
 def generate_trajectory_and_measurements(
@@ -100,13 +99,12 @@ def generate_trajectory_and_measurements(
     )
 
 
-def wrap_to_pi(theta):
+def wrap_to_pi(theta) -> float:
     """
     Нормализует угол(ы) в диапазон [-pi, pi].
-
     Работает как со скалярами, так и с numpy-массивами.
     """
-    return (theta + np.pi) % (2 * np.pi) - np.pi
+    return float((theta + np.pi) % (2 * np.pi) - np.pi)
 
 
 # Параметры симуляции 
