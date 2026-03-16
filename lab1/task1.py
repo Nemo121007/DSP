@@ -43,8 +43,8 @@ def generate_trajectory_and_measurements(
     if control_fn is None:
         def control_fn(i: int, t: float):
             # Управление (угловые скорости колес)
-            u_L = 10.0 * np.sin(2 * t)
-            u_R = 10.0 * np.cos(2 * t)
+            u_L = 10.0 * np.sin(2)
+            u_R = 10.0 * np.cos(2)
             return u_L, u_R
 
     if T <= 0:
@@ -98,6 +98,15 @@ def generate_trajectory_and_measurements(
         np.asarray(controls),
         np.asarray(times),
     )
+
+
+def wrap_to_pi(theta):
+    """
+    Нормализует угол(ы) в диапазон [-pi, pi].
+
+    Работает как со скалярами, так и с numpy-массивами.
+    """
+    return (theta + np.pi) % (2 * np.pi) - np.pi
 
 
 # Параметры симуляции 
@@ -157,6 +166,7 @@ for i in range(num_steps):
         estimated_state[1] + T * s_t * np.sin(r) + 0.5 * T**2 * s_t * s_r * np.cos(r),
         estimated_state[2] + T * s_r
     ])      # (7), (31)
+    state_pred[2] = wrap_to_pi(state_pred[2])
 
     # Вычисление матрицы Якоби
     F = np.array([
@@ -176,7 +186,11 @@ for i in range(num_steps):
     K = P_pred @ np.linalg.inv(S)   # (10), (34)
 
     # Обновление состояния с помощью измерения
-    estimated_state = state_pred + K @ (measurement - state_pred)   # (11), (35)
+    innovation = measurement - state_pred
+    innovation[2] = wrap_to_pi(innovation[2])
+
+    estimated_state = state_pred + K @ innovation  # (11), (35)
+    estimated_state[2] = wrap_to_pi(estimated_state[2])
 
     # Обновление ковариации
     P = P_pred - K @ S @ K.T    # (12), (36)
