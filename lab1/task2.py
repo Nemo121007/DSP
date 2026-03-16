@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Tuple, List
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 # Utils
 # =========================
 
-def wrap_to_pi(theta) -> float:
+def wrap_to_pi(theta: float) -> float:
     """
     Нормализует угол(ы) в диапазон [-pi, pi].
 
@@ -16,7 +16,7 @@ def wrap_to_pi(theta) -> float:
     return float((theta + np.pi) % (2 * np.pi) - np.pi)
 
 
-def make_spd(P: np.NDarray) -> np.ndarray:
+def make_spd(P: np.ndarray) -> np.ndarray:
     """
     Приводит матрицу к виду симметричной положительно определенной.
     """
@@ -32,12 +32,15 @@ def make_spd(P: np.NDarray) -> np.ndarray:
 # Motion model
 # =========================
 
-def motion_model(state, u):
+def motion_model(state: Tuple[float, float, float], u: Tuple[float, float, float]) -> np.ndarray:
     """
-    Модель движения в виде [dr1, dt, dr2]
-        - dr1 - поворот перед движением
-        - dt - пройденное расстояние
-        - dr2 - поворот после завершения движения
+    Модель движения для робота с управлением в виде [dr1, dt, dr2], где:
+    Args:
+        state: модель движения в виде [x, y, theta]
+        u: модель управления в виде [dr1, dt, dr2]
+
+    Returns:
+        Список нового состояния [x_new, y_new, theta_new] после применения модели движения
     """
     x, y, theta = state
     dr1, dt, dr2 = u
@@ -49,9 +52,19 @@ def motion_model(state, u):
     return np.array([x_new, y_new, theta_new])
 
 
-def jacobian_motion(state, u):
+def jacobian_motion(state: Tuple[float, float, float], u: Tuple[float, float, float]) -> np.ndarray:
     """
-    Якобиан
+    Якобиан модели движения
+
+    Args:
+        state: модель движения в виде [x, y, theta]
+            - x - координата по оси X
+            - y - координата по оси Y
+            - theta - угол ориентации робота
+        u: модель управления в виде [dr1, dt, dr2]
+            - dr1 - поворот перед движением
+            - dt - пройденное расстояние
+            - dr2 - поворот после завершения движения
     """
     _, _, theta = state
     dr1, dt, _ = u
@@ -62,14 +75,26 @@ def jacobian_motion(state, u):
         [1, 0, -dt * np.sin(angle)],
         [0, 1,  dt * np.cos(angle)],
         [0, 0, 1]
-    ])
+    ])  # (25, 32)
 
 
 # =========================
 # Measurement model (RANGE + BEARING)
 # =========================
 
-def measurement_model(state, landmark):
+def measurement_model(state: Tuple[float, float, float], landmark: Tuple[float, float]) -> np.ndarray:
+    """Модель измерения для RANGE + BEARING
+    Args:
+        state: модель движения в виде [x, y, theta]
+        - x - координата по оси X
+        - y - координата по оси Y
+        - theta - угол ориентации робота
+        landmark: координаты ориентира в виде [lx, ly]
+        - lx - координата ориентира по оси X
+        - ly - координата ориентира по оси Y
+    Returns:
+        Список измерения [range, bearing] для данного состояния и ориентира
+    """
     x, y, theta = state
     lx, ly = landmark
 
@@ -82,7 +107,20 @@ def measurement_model(state, landmark):
     return np.array([r, bearing])
 
 
-def jacobian_measurement(state, landmark):
+def jacobian_measurement(state: Tuple[float, float, float], landmark: Tuple[float, float]) -> np.ndarray:
+    """
+    Якобиан модели измерения для RANGE + BEARING
+    Args:
+        state: модель движения в виде [x, y, theta]
+            - x - координата по оси X
+            - y - координата по оси Y
+            - theta - угол ориентации робота
+        landmark: координаты ориентира в виде [lx, ly]
+            - lx - координата ориентира по оси X
+            - ly - координата ориентира по оси Y
+    Returns:
+        Матрица Якобиана H для измерения [range, bearing]
+    """
     x, y, theta = state
     lx, ly = landmark
 
@@ -94,7 +132,7 @@ def jacobian_measurement(state, landmark):
 
     return np.array([
         [-dx / r, -dy / r, 0],
-        [ dy / q, -dx / q, -1]
+        [dy / q, -dx / q, -1]
     ])
 
 
@@ -110,8 +148,26 @@ R = np.diag([0.2, 0.1])  # [range, bearing]
 # EKF
 # =========================
 
-def ekf_step(state, P, u, measurements, landmarks):
+def ekf_step(state: Tuple[float, float, float], P: np.ndarray, u: Tuple[float, float, float], measurements: List,
+             landmarks: Dict) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Шаг EKF для модели движения и измерения RANGE + BEARING
+    Args:
+        state: модель движения в виде [x, y, theta]
+            - x - координата по оси X
+            - y - координата по оси Y
+            - theta - угол ориентации робота
+        P: ковариационная матрица оценки состояния
+        u: модель управления в виде [dr1, dt, dr2]
+            - dr1 - поворот перед движением
+            - dt - пройденное расстояние
+            - dr2 - поворот после завершения движения
+        measurements: список измерений в виде [(landmark_id, [range, bearing]), ...]
+        landmarks: словарь с координатами ориентиров в виде {landmark_id: [lx, ly], ...}
 
+    Returns:
+        Список обновленных состояния и ковариационной матрицы после применения EKF
+    """
     # Prediction
     F = jacobian_motion(state, u)
     state = motion_model(state, u)
@@ -127,13 +183,13 @@ def ekf_step(state, P, u, measurements, landmarks):
         innovation = z - z_pred
         innovation[1] = wrap_to_pi(innovation[1])
 
-        S = H @ P @ H.T + R
-        K = P @ H.T @ np.linalg.inv(S)
+        S = H @ P @ H.T + R         # (33)
+        K = P @ H.T @ np.linalg.inv(S)  # (34)
 
-        state = state + K @ innovation
+        state = state + K @ innovation  # (35)
         state[2] = wrap_to_pi(state[2])
 
-        P = (np.eye(3) - K @ H) @ P
+        P = (np.eye(3) - K @ H) @ P     # (36)
 
     return state, P
 
@@ -142,9 +198,22 @@ def ekf_step(state, P, u, measurements, landmarks):
 # UKF
 # =========================
 
-def generate_sigma_points(x, P, alpha=0.5, beta=2, kappa=0):
+def generate_sigma_points(x: Tuple[float, float, float],
+                          P: np.ndarray, alpha: float = 0.5, beta: int =2, kappa: int =0) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Генерация сигма-точек для UKF
+    Args:
+        x: текущее состояние в виде [x, y, theta]
+        P: текущая ковариация состояния
+        alpha: параметр, определяющий разброс сигма-точек вокруг среднего (обычно 0.5-1)
+        beta: парметр, учитывающий априорную информацию о распределении (обычно 2 для гауссовского)
+        kappa: параметр, обычно 0 или 3-n, где n - размерность состояния
+
+    Returns:
+        Список сигма-точек, веса для среднего и веса для ковариации
+    """
     n = len(x)
-    lam = alpha**2 * (n + kappa) - n
+    lam = alpha**2 * (n + kappa) - n    # (45)
 
     scale = n + lam
     if scale <= 0:
@@ -153,10 +222,10 @@ def generate_sigma_points(x, P, alpha=0.5, beta=2, kappa=0):
     P = make_spd(P)
     P = P + 1e-5 * np.eye(n)
 
-    sqrt_P = np.linalg.cholesky(scale * P)
+    sqrt_P = np.linalg.cholesky(scale * P)  # (40)
 
     sigma_points = [x]
-    for i in range(n):
+    for i in range(n):      # (39, 40, 41)
         sigma_points.append(x + sqrt_P[:, i])
         sigma_points.append(x - sqrt_P[:, i])
 
@@ -166,18 +235,28 @@ def generate_sigma_points(x, P, alpha=0.5, beta=2, kappa=0):
     Wc = np.full(2*n+1, 1/(2*scale))
 
     Wm[0] = lam/scale
-    Wc[0] = lam/scale + (1 - alpha**2 + beta)
+    Wc[0] = lam/scale + (1 - alpha**2 + beta)   # (45)
 
     return sigma_points, Wm, Wc
 
 
-def ukf_predict(state, P, u):
+def ukf_predict(state: Tuple[float, float, float], P: np.ndarray, u: Tuple[float, float, float]) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Предсказание состояния и ковариации с помощью UKF для модели движения RANGE + BEARING
+    Args:
+        state: модель движения в виде [x, y, theta]
+        P: текущая ковариация состояния
+        u: модель управления в виде [dr1, dt, dr2]
+
+    Returns:
+        Список предсказанных состояния и ковариационной матрицы после применения UKF
+    """
     sigma_points, Wm, Wc = generate_sigma_points(state, P)
 
     propagated = np.array([motion_model(sp, u) for sp in sigma_points])
 
-    x_pred = np.sum(Wm[:, None] * propagated, axis=0)
-    x_pred[2] = wrap_to_pi(x_pred[2])
+    x_pred = np.sum(Wm[:, None] * propagated, axis=0)   # (51)
+    x_pred[2] = wrap_to_pi(x_pred[2])                   # (52)
 
     P_pred = np.zeros((3, 3))
     for i in range(len(propagated)):
@@ -190,12 +269,23 @@ def ukf_predict(state, P, u):
     return x_pred, P_pred
 
 
-def ukf_update(state, P, measurement, landmark):
+def ukf_update(state: Tuple[float, float, float], P: np.ndarray, measurement: List, landmark: List) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Усиление состояния и ковариации с помощью UKF для модели измерения RANGE + BEARING
+    Args:
+        state: модель движения в виде [x, y, theta]
+        P: текущая ковариация состояния
+        measurement: cписок измерений в виде [range, bearing]
+        landmark: список координат ориентира в виде [lx, ly]
+
+    Returns:
+        Список обновленных состояния и ковариационной матрицы после применения UKF
+    """
     sigma_points, Wm, Wc = generate_sigma_points(state, P)
 
     Z = np.array([measurement_model(sp, landmark) for sp in sigma_points])
 
-    z_pred = np.sum(Wm[:, None] * Z, axis=0)
+    z_pred = np.sum(Wm[:, None] * Z, axis=0)    # (57)
     z_pred[1] = wrap_to_pi(z_pred[1])
 
     S = np.zeros((2, 2))
@@ -208,13 +298,13 @@ def ukf_update(state, P, measurement, landmark):
         dx = sigma_points[i] - state
         dx[2] = wrap_to_pi(dx[2])
 
-        S += Wc[i] * np.outer(dz, dz)
-        Pxz += Wc[i] * np.outer(dx, dz)
+        S += Wc[i] * np.outer(dz, dz)       # (58)
+        Pxz += Wc[i] * np.outer(dx, dz)     # (59)
 
-    # ✅ добавляем шум И jitter сразу
+    # Добавляем шум И jitter сразу
     S += R + 1e-6 * np.eye(2)
 
-    K = Pxz @ np.linalg.inv(S)
+    K = Pxz @ np.linalg.inv(S)              # (60)
 
     innovation = measurement - z_pred
     innovation[1] = wrap_to_pi(innovation[1])
@@ -228,7 +318,20 @@ def ukf_update(state, P, measurement, landmark):
     return state, P
 
 
-def ukf_step(state, P, u, measurements, landmarks):
+def ukf_step(state: Tuple[float, float, float], P: np.ndarray, u: Tuple[float, float, float],
+             measurements: List, landmarks: List) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Шаг фильтра UKF для модели движения и измерения RANGE + BEARING
+    Args:
+        state: модель состояния в виде [x, y, theta]
+        P: текущая ковариация состояния
+        u: модель управления в виде [dr1, dt, dr2]
+        measurements: список измерений в виде [(landmark_id, [range, bearing]), ...]
+        landmarks: список координат ориентиров в виде {landmark_id: [lx, ly], ...}
+
+    Returns:
+        Список обновленных состояния и ковариационной матрицы после применения UKF
+    """
     state, P = ukf_predict(state, P, u)
 
     for lm_id, z in measurements:
