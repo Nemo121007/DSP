@@ -1,10 +1,10 @@
 import pickle
-import numpy as np
-import matplotlib.pyplot as plt
 import sys
 from pathlib import Path
-from typing import Tuple, List, Dict, Any
+from typing import Any, Dict, List, Tuple
 
+import matplotlib.pyplot as plt
+import numpy as np
 
 # =========================
 # Constants
@@ -18,11 +18,14 @@ SIGMA_GYRO = 0.02
 SIGMA_GNSS = 0.1
 SIGMA_LIDAR = 0.1
 
-C_LIDAR = np.array([
-    [0.99376, -0.09722, 0.05466],
-    [0.09971, 0.99401, -0.04475],
-    [-0.04998, 0.04992, 0.9975]
-], dtype=float)
+C_LIDAR = np.array(
+    [
+        [0.99376, -0.09722, 0.05466],
+        [0.09971, 0.99401, -0.04475],
+        [-0.04998, 0.04992, 0.9975],
+    ],
+    dtype=float,
+)
 
 T_LIDAR = np.array([0.5, 0.1, 0.5], dtype=float)
 
@@ -31,52 +34,52 @@ T_LIDAR = np.array([0.5, 0.1, 0.5], dtype=float)
 # Math utils
 # =========================
 
+
 def skew(a: np.ndarray) -> np.ndarray:
     """
     Преобразует вектор в кососимметричную матрицу (skew-symmetric matrix).
-    
+
     Args:
         a: Входной вектор размером (3,)
-        
+
     Returns:
         Кососимметричная матрица размером (3, 3)
     """
-    return np.array([
-        [0.0, -a[2], a[1]],
-        [a[2], 0.0, -a[0]],
-        [-a[1], a[0], 0.0]
-    ])
+    return np.array([[0.0, -a[2], a[1]], [a[2], 0.0, -a[0]], [-a[1], a[0], 0.0]])
 
 
 def quat_mul(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
     """
     Умножение двух кватернионов.
-    
+
     Args:
         q1: Первый кватернион формата [w, x, y, z]
         q2: Второй кватернион формата [w, x, y, z]
-        
+
     Returns:
         Результат умножения кватернионов [w, x, y, z]
     """
     w1, x1, y1, z1 = q1
     w2, x2, y2, z2 = q2
 
-    return np.array([
-        w1*w2 - x1*x2 - y1*y2 - z1*z2,
-        w1*x2 + x1*w2 + y1*z2 - z1*y2,
-        w1*y2 - x1*z2 + y1*w2 + z1*x2,
-        w1*z2 + x1*y2 - y1*x2 + z1*w2
-    ], dtype=float)
+    return np.array(
+        [
+            w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+        ],
+        dtype=float,
+    )
 
 
 def quat_exp(theta: np.ndarray) -> np.ndarray:
     """
     Вычисляет экспоненту вектора угловой скорости (кватернион).
-    
+
     Args:
         theta: Вектор угловой скорости размером (3,)
-        
+
     Returns:
         Кватернион формата [w, x, y, z]
     """
@@ -86,42 +89,55 @@ def quat_exp(theta: np.ndarray) -> np.ndarray:
         return np.array([1.0, 0.0, 0.0, 0.0])
 
     axis = theta / angle
-    return np.hstack([
-        np.cos(angle / 2.0),
-        axis * np.sin(angle / 2.0)
-    ])
+    return np.hstack([np.cos(angle / 2.0), axis * np.sin(angle / 2.0)])
 
 
 def quat_to_R(q: np.ndarray) -> np.ndarray:
     """
     Преобразует кватернион в матрицу ориентации (матрица вращения).
-    
+
     Args:
         q: Кватернион формата [w, x, y, z]
-        
+
     Returns:
         Матрица ориентации размером (3, 3)
     """
     q0, q1, q2, q3 = q
 
-    return np.array([
-        [2*q0*q0 - 1 + 2*q1*q1, 2*q1*q2 - 2*q0*q3, 2*q1*q3 + 2*q0*q2],
-        [2*q1*q2 + 2*q0*q3, 2*q0*q0 - 1 + 2*q2*q2, 2*q2*q3 - 2*q0*q1],
-        [2*q1*q3 - 2*q0*q2, 2*q2*q3 + 2*q0*q1, 2*q0*q0 - 1 + 2*q3*q3]
-    ], dtype=float)
+    return np.array(
+        [
+            [
+                2 * q0 * q0 - 1 + 2 * q1 * q1,
+                2 * q1 * q2 - 2 * q0 * q3,
+                2 * q1 * q3 + 2 * q0 * q2,
+            ],
+            [
+                2 * q1 * q2 + 2 * q0 * q3,
+                2 * q0 * q0 - 1 + 2 * q2 * q2,
+                2 * q2 * q3 - 2 * q0 * q1,
+            ],
+            [
+                2 * q1 * q3 - 2 * q0 * q2,
+                2 * q2 * q3 + 2 * q0 * q1,
+                2 * q0 * q0 - 1 + 2 * q3 * q3,
+            ],
+        ],
+        dtype=float,
+    )
 
 
 # =========================
 # Data loading
 # =========================
 
+
 def load_data(path: str | Path) -> Dict[str, Any]:
     """
     Загружает данные из pickle файла.
-    
+
     Args:
         path: Путь к файлу данных (относительный или абсолютный)
-        
+
     Returns:
         Словарь содержащий загруженные данные (imu_f, imu_w, gnss, lidar, gt)
     """
@@ -134,10 +150,7 @@ def load_data(path: str | Path) -> Dict[str, Any]:
     if str(data_files_dir) not in sys.path:
         sys.path.insert(0, str(data_files_dir))
 
-    import data.data  # noqa
-    import data.utils  # noqa
-
-    with open(data_path, 'rb') as f:
+    with open(data_path, "rb") as f:
         data = pickle.load(f)
 
     return data
@@ -147,52 +160,53 @@ def load_data(path: str | Path) -> Dict[str, Any]:
 # Prepare sequences
 # =========================
 
-def prepare_sequences(data: Dict[str, Any]) -> Tuple[List[Tuple[float, np.ndarray, np.ndarray]], 
-                                                      List[Tuple[float, np.ndarray]], 
-                                                      List[Tuple[float, np.ndarray]]]:
+
+def prepare_sequences(
+    data: Dict[str, Any],
+) -> Tuple[
+    List[Tuple[float, np.ndarray, np.ndarray]],
+    List[Tuple[float, np.ndarray]],
+    List[Tuple[float, np.ndarray]],
+]:
     """
     Подготавливает последовательности управления и наблюдений для фильтра.
-    
+
     Args:
         data: Словарь загруженных данных содержащий:
               - imu_f: ускорения IMU
               - imu_w: угловые скорости IMU
               - gnss: GNSS наблюдения
               - lidar: LiDAR наблюдения
-    
+
     Returns:
         Кортеж из трёх списков:
         - control: список (время, ускорение, угловая_скорость)
         - obs_gnss: список (время, позиция_GNSS)
         - obs_lidar: список (время, позиция_LiDAR)
     """
-    imu_f = data['imu_f']
-    imu_w = data['imu_w']
-    gnss = data['gnss']
-    lidar = data['lidar']
+    imu_f = data["imu_f"]
+    imu_w = data["imu_w"]
+    gnss = data["gnss"]
+    lidar = data["lidar"]
 
     control = []
     for i in range(1, len(imu_f.data)):
-        control.append((
-            float(imu_f.t[i]),
-            imu_f.data[i - 1].astype(float),
-            imu_w.data[i - 1].astype(float)
-        ))
+        control.append(
+            (
+                float(imu_f.t[i]),
+                imu_f.data[i - 1].astype(float),
+                imu_w.data[i - 1].astype(float),
+            )
+        )
 
     obs_gnss = []
-    for i in range(len(gnss.t)):
-        obs_gnss.append((
-            float(gnss.t[i]),
-            gnss.data[i].astype(float)
-        ))
+    for i, _ in enumerate(gnss.t):
+        obs_gnss.append((float(gnss.t[i]), gnss.data[i].astype(float)))
 
     obs_lidar = []
-    for i in range(len(lidar.t)):
+    for i, _ in enumerate(lidar.t):
         z = C_LIDAR @ lidar.data[i] + T_LIDAR
-        obs_lidar.append((
-            float(lidar.t[i]),
-            z.astype(float)
-        ))
+        obs_lidar.append((float(lidar.t[i]), z.astype(float)))
 
     return control, obs_gnss, obs_lidar
 
@@ -201,13 +215,14 @@ def prepare_sequences(data: Dict[str, Any]) -> Tuple[List[Tuple[float, np.ndarra
 # ESKF
 # =========================
 
+
 class ESKF:
     """
     Error-State Kalman Filter (ESKF) для оценки состояния.
-    
+
     Фильтр оценивает позицию (p), скорость (v) и ориентацию (q).
     Ошибочное состояние описывается 9-мерным вектором ошибок.
-    
+
     Attributes:
         p: Позиция (3,)
         v: Скорость (3,)
@@ -218,7 +233,7 @@ class ESKF:
     def __init__(self, p0: np.ndarray, v0: np.ndarray, q0: np.ndarray) -> None:
         """
         Инициализирует ESKF с начальными условиями.
-        
+
         Args:
             p0: Начальная позиция (3,)
             v0: Начальная скорость (3,)
@@ -233,7 +248,7 @@ class ESKF:
     def predict(self, f: np.ndarray, w: np.ndarray, dt: float) -> None:
         """
         Предсказательный шаг фильтра (update номинального состояния и ковариации).
-        
+
         Args:
             f: Ускорение IMU в координатах тела (3,)
             w: Угловая скорость IMU в координатах тела (3,)
@@ -272,7 +287,7 @@ class ESKF:
     def update(self, z: np.ndarray, R_meas: np.ndarray) -> None:
         """
         Коррекционный шаг фильтра (обновление состояния на основе измерения).
-        
+
         Args:
             z: Измерение позиции (3,)
             R_meas: Матрица ковариации измерения (3, 3)
@@ -301,22 +316,21 @@ class ESKF:
 # Filter run
 # =========================
 
+
 def run_filter(data: Dict[str, Any]) -> np.ndarray:
     """
     Запускает ESKF фильтр на входных данных.
-    
+
     Args:
         data: Словарь загруженных данных содержащий IMU, GNSS, LiDAR измерения и ground truth
-        
+
     Returns:
         Массив оценённых позиций траектории размером (N, 3)
     """
     control, obs_gnss, obs_lidar = prepare_sequences(data)
 
     eskf = ESKF(
-        p0=data['gt'].p[0],
-        v0=data['gt'].v[0],
-        q0=np.array([1.0, 0.0, 0.0, 0.0])
+        p0=data["gt"].p[0], v0=data["gt"].v[0], q0=np.array([1.0, 0.0, 0.0, 0.0])
     )
 
     traj = []
@@ -335,25 +349,13 @@ def run_filter(data: Dict[str, Any]) -> np.ndarray:
         eskf.predict(f, w, dt)
 
         # GNSS update
-        while (
-            gnss_idx < len(obs_gnss)
-            and abs(obs_gnss[gnss_idx][0] - t) < EPS
-        ):
-            eskf.update(
-                obs_gnss[gnss_idx][1],
-                SIGMA_GNSS**2 * np.eye(3)
-            )
+        while gnss_idx < len(obs_gnss) and abs(obs_gnss[gnss_idx][0] - t) < EPS:
+            eskf.update(obs_gnss[gnss_idx][1], SIGMA_GNSS**2 * np.eye(3))
             gnss_idx += 1
 
         # LiDAR update
-        while (
-            lidar_idx < len(obs_lidar)
-            and abs(obs_lidar[lidar_idx][0] - t) < EPS
-        ):
-            eskf.update(
-                obs_lidar[lidar_idx][1],
-                SIGMA_LIDAR**2 * np.eye(3)
-            )
+        while lidar_idx < len(obs_lidar) and abs(obs_lidar[lidar_idx][0] - t) < EPS:
+            eskf.update(obs_lidar[lidar_idx][1], SIGMA_LIDAR**2 * np.eye(3))
             lidar_idx += 1
 
         traj.append(eskf.p.copy())
@@ -365,16 +367,17 @@ def run_filter(data: Dict[str, Any]) -> np.ndarray:
 # Visualization
 # =========================
 
+
 def plot_trajectory(traj: np.ndarray, gt: Any) -> None:
     """
     Визуализирует траекторию оценки фильтра и ground truth.
-    
+
     Args:
         traj: Массив оценённых позиций размером (N, 3)
         gt: Ground truth данные содержащие поле p с траекторией
     """
     fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
+    ax = fig.add_subplot(111, projection="3d")
 
     ax.plot(traj[:, 0], traj[:, 1], traj[:, 2], label="ESKF")
     ax.plot(gt.p[:, 0], gt.p[:, 1], gt.p[:, 2], label="Ground Truth")
@@ -389,6 +392,7 @@ def plot_trajectory(traj: np.ndarray, gt: Any) -> None:
 # Main
 # =========================
 
+
 def main() -> None:
     """
     Основная функция для запуска фильтра и визуализации результатов.
@@ -397,7 +401,7 @@ def main() -> None:
 
     traj = run_filter(data)
 
-    plot_trajectory(traj, data['gt'])
+    plot_trajectory(traj, data["gt"])
 
 
 if __name__ == "__main__":

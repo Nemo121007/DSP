@@ -1,12 +1,13 @@
-from typing import Dict, Tuple, List
-import numpy as np
 from pathlib import Path
-import matplotlib.pyplot as plt
+from typing import Dict, List, Tuple
 
+import matplotlib.pyplot as plt
+import numpy as np
 
 # =========================
 # Utils
 # =========================
+
 
 def wrap_to_pi(theta: float) -> float:
     """
@@ -32,7 +33,10 @@ def make_spd(P: np.ndarray) -> np.ndarray:
 # Motion model
 # =========================
 
-def motion_model(state: Tuple[float, float, float], u: Tuple[float, float, float]) -> np.ndarray:
+
+def motion_model(
+    state: Tuple[float, float, float], u: Tuple[float, float, float]
+) -> np.ndarray:
     """
     Модель движения для робота с управлением в виде [dr1, dt, dr2], где:
     Args:
@@ -52,7 +56,9 @@ def motion_model(state: Tuple[float, float, float], u: Tuple[float, float, float
     return np.array([x_new, y_new, theta_new])
 
 
-def jacobian_motion(state: Tuple[float, float, float], u: Tuple[float, float, float]) -> np.ndarray:
+def jacobian_motion(
+    state: Tuple[float, float, float], u: Tuple[float, float, float]
+) -> np.ndarray:
     """
     Якобиан модели движения
 
@@ -71,18 +77,19 @@ def jacobian_motion(state: Tuple[float, float, float], u: Tuple[float, float, fl
 
     angle = theta + dr1
 
-    return np.array([
-        [1, 0, -dt * np.sin(angle)],
-        [0, 1,  dt * np.cos(angle)],
-        [0, 0, 1]
-    ])  # (25, 32)
+    return np.array(
+        [[1, 0, -dt * np.sin(angle)], [0, 1, dt * np.cos(angle)], [0, 0, 1]]
+    )  # (25, 32)
 
 
 # =========================
 # Measurement model (RANGE + BEARING)
 # =========================
 
-def measurement_model(state: Tuple[float, float, float], landmark: Tuple[float, float]) -> np.ndarray:
+
+def measurement_model(
+    state: Tuple[float, float, float], landmark: Tuple[float, float]
+) -> np.ndarray:
     """Модель измерения для RANGE + BEARING
     Args:
         state: модель движения в виде [x, y, theta]
@@ -107,7 +114,9 @@ def measurement_model(state: Tuple[float, float, float], landmark: Tuple[float, 
     return np.array([r, bearing])
 
 
-def jacobian_measurement(state: Tuple[float, float, float], landmark: Tuple[float, float]) -> np.ndarray:
+def jacobian_measurement(
+    state: Tuple[float, float, float], landmark: Tuple[float, float]
+) -> np.ndarray:
     """
     Якобиан модели измерения для RANGE + BEARING
     Args:
@@ -121,7 +130,7 @@ def jacobian_measurement(state: Tuple[float, float, float], landmark: Tuple[floa
     Returns:
         Матрица Якобиана H для измерения [range, bearing]
     """
-    x, y, theta = state
+    x, y, _ = state
     lx, ly = landmark
 
     dx = lx - x
@@ -130,10 +139,7 @@ def jacobian_measurement(state: Tuple[float, float, float], landmark: Tuple[floa
     q = dx**2 + dy**2
     r = np.sqrt(q) + 1e-9
 
-    return np.array([
-        [-dx / r, -dy / r, 0],
-        [dy / q, -dx / q, -1]
-    ])
+    return np.array([[-dx / r, -dy / r, 0], [dy / q, -dx / q, -1]])
 
 
 # =========================
@@ -148,8 +154,14 @@ R = np.diag([0.2, 0.1])  # [range, bearing]
 # EKF
 # =========================
 
-def ekf_step(state: Tuple[float, float, float], P: np.ndarray, u: Tuple[float, float, float], measurements: List,
-             landmarks: Dict) -> Tuple[np.ndarray, np.ndarray]:
+
+def ekf_step(
+    state: Tuple[float, float, float],
+    P: np.ndarray,
+    u: Tuple[float, float, float],
+    measurements: List,
+    landmarks: Dict,
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Шаг EKF для модели движения и измерения RANGE + BEARING
     Args:
@@ -183,13 +195,13 @@ def ekf_step(state: Tuple[float, float, float], P: np.ndarray, u: Tuple[float, f
         innovation = z - z_pred
         innovation[1] = wrap_to_pi(innovation[1])
 
-        S = H @ P @ H.T + R         # (33)
+        S = H @ P @ H.T + R  # (33)
         K = P @ H.T @ np.linalg.inv(S)  # (34)
 
         state = state + K @ innovation  # (35)
         state[2] = wrap_to_pi(state[2])
 
-        P = (np.eye(3) - K @ H) @ P     # (36)
+        P = (np.eye(3) - K @ H) @ P  # (36)
 
     return state, P
 
@@ -198,8 +210,14 @@ def ekf_step(state: Tuple[float, float, float], P: np.ndarray, u: Tuple[float, f
 # UKF
 # =========================
 
-def generate_sigma_points(x: Tuple[float, float, float],
-                          P: np.ndarray, alpha: float = 0.5, beta: int =2, kappa: int =0) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+
+def generate_sigma_points(
+    x: Tuple[float, float, float],
+    P: np.ndarray,
+    alpha: float = 0.5,
+    beta: int = 2,
+    kappa: int = 0,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Генерация сигма-точек для UKF
     Args:
@@ -213,7 +231,7 @@ def generate_sigma_points(x: Tuple[float, float, float],
         Список сигма-точек, веса для среднего и веса для ковариации
     """
     n = len(x)
-    lam = alpha**2 * (n + kappa) - n    # (45)
+    lam = alpha**2 * (n + kappa) - n  # (45)
 
     scale = n + lam
     if scale <= 0:
@@ -225,22 +243,24 @@ def generate_sigma_points(x: Tuple[float, float, float],
     sqrt_P = np.linalg.cholesky(scale * P)  # (40)
 
     sigma_points = [x]
-    for i in range(n):      # (39, 40, 41)
+    for i in range(n):  # (39, 40, 41)
         sigma_points.append(x + sqrt_P[:, i])
         sigma_points.append(x - sqrt_P[:, i])
 
     sigma_points = np.array(sigma_points)
 
-    Wm = np.full(2*n+1, 1/(2*scale))
-    Wc = np.full(2*n+1, 1/(2*scale))
+    Wm = np.full(2 * n + 1, 1 / (2 * scale))
+    Wc = np.full(2 * n + 1, 1 / (2 * scale))
 
-    Wm[0] = lam/scale
-    Wc[0] = lam/scale + (1 - alpha**2 + beta)   # (45)
+    Wm[0] = lam / scale
+    Wc[0] = lam / scale + (1 - alpha**2 + beta)  # (45)
 
     return sigma_points, Wm, Wc
 
 
-def ukf_predict(state: Tuple[float, float, float], P: np.ndarray, u: Tuple[float, float, float]) -> Tuple[np.ndarray, np.ndarray]:
+def ukf_predict(
+    state: Tuple[float, float, float], P: np.ndarray, u: Tuple[float, float, float]
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Предсказание состояния и ковариации с помощью UKF для модели движения RANGE + BEARING
     Args:
@@ -255,12 +275,12 @@ def ukf_predict(state: Tuple[float, float, float], P: np.ndarray, u: Tuple[float
 
     propagated = np.array([motion_model(sp, u) for sp in sigma_points])
 
-    x_pred = np.sum(Wm[:, None] * propagated, axis=0)   # (51)
-    x_pred[2] = wrap_to_pi(x_pred[2])                   # (52)
+    x_pred = np.sum(Wm[:, None] * propagated, axis=0)  # (51)
+    x_pred[2] = wrap_to_pi(x_pred[2])  # (52)
 
     P_pred = np.zeros((3, 3))
-    for i in range(len(propagated)):
-        diff = propagated[i] - x_pred
+    for i, prop in enumerate(propagated):
+        diff = prop - x_pred
         diff[2] = wrap_to_pi(diff[2])
         P_pred += Wc[i] * np.outer(diff, diff)
 
@@ -269,7 +289,9 @@ def ukf_predict(state: Tuple[float, float, float], P: np.ndarray, u: Tuple[float
     return x_pred, P_pred
 
 
-def ukf_update(state: Tuple[float, float, float], P: np.ndarray, measurement: List, landmark: List) -> Tuple[np.ndarray, np.ndarray]:
+def ukf_update(
+    state: Tuple[float, float, float], P: np.ndarray, measurement: List, landmark: List
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Усиление состояния и ковариации с помощью UKF для модели измерения RANGE + BEARING
     Args:
@@ -285,26 +307,26 @@ def ukf_update(state: Tuple[float, float, float], P: np.ndarray, measurement: Li
 
     Z = np.array([measurement_model(sp, landmark) for sp in sigma_points])
 
-    z_pred = np.sum(Wm[:, None] * Z, axis=0)    # (57)
+    z_pred = np.sum(Wm[:, None] * Z, axis=0)  # (57)
     z_pred[1] = wrap_to_pi(z_pred[1])
 
     S = np.zeros((2, 2))
     Pxz = np.zeros((3, 2))
 
-    for i in range(len(Z)):
-        dz = Z[i] - z_pred
+    for i, (z, sp) in enumerate(zip(Z, sigma_points)):
+        dz = z - z_pred
         dz[1] = wrap_to_pi(dz[1])
 
-        dx = sigma_points[i] - state
+        dx = sp - state
         dx[2] = wrap_to_pi(dx[2])
 
-        S += Wc[i] * np.outer(dz, dz)       # (58)
-        Pxz += Wc[i] * np.outer(dx, dz)     # (59)
+        S += Wc[i] * np.outer(dz, dz)  # (58)
+        Pxz += Wc[i] * np.outer(dx, dz)  # (59)
 
     # Добавляем шум И jitter сразу
     S += R + 1e-6 * np.eye(2)
 
-    K = Pxz @ np.linalg.inv(S)              # (60)
+    K = Pxz @ np.linalg.inv(S)  # (60)
 
     innovation = measurement - z_pred
     innovation[1] = wrap_to_pi(innovation[1])
@@ -318,8 +340,13 @@ def ukf_update(state: Tuple[float, float, float], P: np.ndarray, measurement: Li
     return state, P
 
 
-def ukf_step(state: Tuple[float, float, float], P: np.ndarray, u: Tuple[float, float, float],
-             measurements: List, landmarks: List) -> Tuple[np.ndarray, np.ndarray]:
+def ukf_step(
+    state: Tuple[float, float, float],
+    P: np.ndarray,
+    u: Tuple[float, float, float],
+    measurements: List,
+    landmarks: List,
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Шаг фильтра UKF для модели движения и измерения RANGE + BEARING
     Args:
@@ -345,42 +372,86 @@ def ukf_step(state: Tuple[float, float, float], P: np.ndarray, u: Tuple[float, f
 # Data loading
 # =========================
 
+
 def load_landmarks(path: Path) -> Dict[int, np.ndarray]:
+    """
+    Загружает координаты ориентиров из файла.
+    Файл должен содержать строки в формате:
+    landmark_id x y
+    Строки, начинающиеся с "#", пропускаются как комментарии.
+    
+    Args:
+        path: Путь к файлу с координатами ориентиров
+    
+    Returns:
+        Словарь где ключи - ID ориентиров (int), 
+        значения - массивы координат (x, y) размером (2,)
+        Формат: {landmark_id: np.array([x, y]), ...}
+    """
     landmarks = {}
-    with path.open('r') as f:
+    with path.open("r") as f:
         for line in f:
-            if line.startswith('#'):
+            if line.startswith("#"):
                 continue
             parts = line.split()
             landmarks[int(parts[0])] = np.array([float(parts[1]), float(parts[2])])
     return landmarks
 
 
-def load_sensor_data(path: Path):
+def load_sensor_data(path: Path) -> Tuple[List[np.ndarray], List[List[Tuple[int, np.ndarray]]]]:
+    """
+    Загружает данные одометрии и датчиков (дальномера) из файла.
+    
+    Файл должен содержать строки с тегами ODOMETRY и SENSOR в формате:
+    - ODOMETRY dr1 dt dr2 (dr1, dt, dr2 - поворот перед, расстояние, поворот после)
+    - SENSOR landmark_id range bearing (измерение дальности и угла до ориентира)
+    
+    Строки, начинающиеся с "#", пропускаются как комментарии.
+    
+    Каждой команде ODOMETRY соответствует последовательность измерений SENSOR,
+    полученных после выполнения этой команды.
+    
+    Args:
+        path: Путь к файлу с данными одометрии и датчиков
+    
+    Returns:
+        Кортеж содержащий:
+        - odometry_data: список команд управления размером (N,), 
+                         каждая команда - массив [dr1, dt, dr2]:
+                         * dr1: поворот перед движением (rad)
+                         * dt: пройденное расстояние
+                         * dr2: поворот после завершения движения (rad)
+        - measurements_seq: список последовательностей измерений размером (N,),
+                            каждая последовательность содержит кортежи:
+                            [(landmark_id, [range, bearing]), ...]
+                            * landmark_id: целочисленный ID ориентира
+                            * range: расстояние до ориентира
+                            * bearing: угловое направление до ориентира (rad)
+    """
     odometry_data = []
     measurements_seq = []
     current_measurements = []
 
-    with path.open('r') as f:
+    with path.open("r") as f:
         for line in f:
-            if line.startswith('#'):
+            if line.startswith("#"):
                 continue
 
             parts = line.split()
             tag = parts[0]
 
-            if tag == 'ODOMETRY':
+            if tag == "ODOMETRY":
                 if odometry_data:
                     measurements_seq.append(current_measurements)
                     current_measurements = []
 
-                u = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
+                u: np.ndarray = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
                 odometry_data.append(u)
 
-            elif tag == 'SENSOR':
-                lm_id = int(parts[1])
-                r = float(parts[2])
-                b = float(parts[3])
+            elif tag == "SENSOR":
+                lm_id: int = int(parts[1])
+                r: float = float(parts[2])
+                b: float = float(parts[3])
 
                 current_measurements.append((lm_id, np.array([r, b])))
 
@@ -394,11 +465,49 @@ def load_sensor_data(path: Path):
 # Main
 # =========================
 
-def run_filter(odometry_data, measurements_seq, landmarks, use_ukf=False):
-    state = np.array([0.0, 0.0, 0.0])
-    P = np.eye(3)
 
-    trajectory = []
+def run_filter(
+    odometry_data: List[np.ndarray],
+    measurements_seq: List[List[Tuple[int, np.ndarray]]],
+    landmarks: Dict[int, np.ndarray],
+    use_ukf: bool = False,
+) -> np.ndarray:
+    """
+    Запускает фильтр EKF или UKF для оценки траектории робота.
+    
+    Фильтр обрабатывает последовательность управляющих команд (одометрия)
+    и соответствующих им измерений ориентиров (дальность и угол), 
+    оценивая при этом траекторию робота.
+    
+    Args:
+        odometry_data: Список команд управления размером (N,), 
+                       каждая команда - [dr1, dt, dr2]:
+                       - dr1: поворот перед движением (rad)
+                       - dt: пройденное расстояние
+                       - dr2: поворот после завершения движения (rad)
+        measurements_seq: Список последовательностей измерений размером (N,),
+                         каждая последовательность содержит измерения вида:
+                         [(landmark_id, [range, bearing]), ...]
+                         - landmark_id: ID ориентира (int)
+                         - range: расстояние до ориентира
+                         - bearing: угловое направление до ориентира (rad)
+        landmarks: Словарь координат ориентиров вида {landmark_id: [x, y], ...}
+                   где x, y - координаты ориентира в мировой СК
+        use_ukf: Флаг выбора фильтра:
+                 - False: использовать EKF (Extended Kalman Filter)
+                 - True: использовать UKF (Unscented Kalman Filter)
+    
+    Returns:
+        Массив оценённой траектории размером (N, 3),
+        каждая строка содержит [x, y, theta]:
+        - x: координата по оси X
+        - y: координата по оси Y
+        - theta: угол ориентации робота (rad)
+    """
+    state: np.ndarray = np.array([0.0, 0.0, 0.0])
+    P: np.ndarray = np.eye(3)
+
+    trajectory: List[np.ndarray] = []
 
     for u, measurements in zip(odometry_data, measurements_seq):
         if use_ukf:
@@ -429,7 +538,7 @@ if __name__ == "__main__":
 
     lm_x = [lm[0] for lm in landmarks.values()]
     lm_y = [lm[1] for lm in landmarks.values()]
-    plt.scatter(lm_x, lm_y, marker='x', label="Landmarks")
+    plt.scatter(lm_x, lm_y, marker="x", label="Landmarks")
 
     plt.legend()
     plt.grid()

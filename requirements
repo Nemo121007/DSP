@@ -6,3 +6,7 @@ numpy>=1.24.0
 matplotlib>=3.7.0
 pandas>=2.14.0
 scipy>=1.11.0
+
+plint>=0.0.0
+isort>=0.0.0
+black>0.0.0

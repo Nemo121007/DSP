@@ -1,0 +1,201 @@
+[MASTER]
+# Список расширений для загрузки
+load-plugins=
+
+# Каталоги, которые нужно игнорировать
+ignore-paths=
+    ^\.venv/,
+    ^venv/,
+    ^__pycache__/,
+    ^\.git/,
+    ^lab1/data_files/
+
+# Файлы, которые нужно игнорировать
+ignore-patterns=
+    ^\.#
+
+# Максимальное количество атрибутов для класса
+max-attributes=7
+
+# Минимальная версия Python
+py-version=3.10
+
+[MESSAGES CONTROL]
+# Отключить предупреждения
+disable=
+    # Документация
+    missing-module-docstring,
+    # Имена переменных
+    invalid-name,
+    # Сложность
+    too-many-arguments,
+    too-many-locals,
+    # Другое
+    too-few-public-methods,
+    invalid-name,
+    redefined-outer-name,
+    missing-module-docstring,
+    import-outside-toplevel,
+
+
+[REPORTS]
+# Установить отчёт выключенным
+reports=no
+
+# Оценка
+score=yes
+
+
+[REFACTORING]
+# Максимальное количество веточек после которого функция будет помечена как сложная
+max-nested-blocks=5
+
+# Максимальное количество строк в функции
+max-locals=15
+
+
+[BASIC]
+# Хорошие имена которые всегда принимаются
+good-names=
+    i,j,k,
+    ex,
+    _,
+    x,y,z,
+    p,v,q,
+    dt,
+    t,
+    f,w,s,r,
+    N,
+    R,
+    F,P,Q,
+    H,K,S,
+    T,C
+
+# Включить абстрактные базовые классы как родительские классы
+abstract-rgx=^Abstract
+
+# Минимальная длина имени (почти всегда игнорируется, если имя в хороших имён)
+min-name-length=2
+
+
+[FORMAT]
+# Максимальная длина линии
+max-line-length=120
+
+# Строки более чем max-line-length будут разбиты, если длина линии содержит
+# несколько строк
+indent-string='    '
+
+# Число пробелов для отступа
+indent-after-first-arg=4
+
+
+[LOGGING]
+# Формат логирования
+logging-format-style=old
+
+
+[VARIABLES]
+# Список имён для которых не требуется нахождение использования
+dummy-variables-rgx=_+$|^unused_
+
+# Список квалифицированных имён (например, звёздное имя для многоточной тире),
+# которые не требует проверки переменных, определённых внизу
+additional-builtins=
+
+# Перечисление переменных с которыми он должен рассматривать как CONST
+const-rgx=(^_?[A-Z][A-Z_]*$)|(^_?[A-Z][A-Z_0-9]*$)
+
+# Список имён класса для которого член класса не требует быть объявлены с
+# использованием self
+defining-attr-methods=
+    __init__,
+    __new__,
+    setUp,
+    __post_init__
+
+
+[CLASSES]
+# Список методов которые не должны требовать декоратора self
+defining-attr-methods=
+    __init__,
+    __new__,
+    setUp
+
+
+[DESIGN]
+# Максимум аргументов для функции/метода
+max-args=9
+
+# Максимум позиционных аргументов
+max-positional-arguments=9
+
+# Количество атрибутов для класса
+max-attributes=7
+
+# Максимальное булевых выражений в if/elif/else
+max-bool-expr=5
+
+# Максимум веток для функции
+max-branches=12
+
+# Максимум локальных переменных в функции
+max-locals=15
+
+# Максимум родительских классов для класса
+max-parents=7
+
+# Максимум публичных методов для класса
+max-public-methods=20
+
+# Максимум возвращаемых значений из функции
+max-returns=6
+
+# Максимум выражений в функции
+max-statements=50
+
+# Минимум публичных методов для класса
+min-public-methods=2
+
+
+[SIMILARITIES]
+# Минимальное количество похожих линий срабатывает для плагина сходства
+min-similarity-lines=4
+
+# Игнорировать комментарии при вычислении подобия
+ignore-comments=yes
+
+# Игнорировать пустые строки при вычислении подобия
+ignore-docstrings=yes
+
+# Игнорировать импорты при вычислении подобия
+ignore-imports=yes
+
+
+[TYPING]
+# Попытаться использовать typing.NamedTuple вместо typing.Tuple
+typed-class-decorator=
+
+[SPELLING]
+# Этот флаг контролирует, должен ли pylint использовать модуль enchant для
+# проверки орфографии
+spelling-dict=
+
+# Список слов которые должны быть рассмотрены как правильные и не станут
+# основаниям заявления о ошибке правописания
+spelling-ignore-words=
+
+# Список регулярных выражений для пропуска полных строк в орфографической проверке
+spelling-ignore-comment-directives=fmt: skip,noqa,pylint,type:
+
+
+[IMPORTS]
+# Принудить import внутри функции
+allow-wildcard-with-all=no
+
+# Анализировать символы импорта, которые не являются объектами внутри модуля
+analyse-fallback-blocks=no
+
+# Создавать карту того, какие модули содержат cyclical imports
+show-error-context=yes
+
