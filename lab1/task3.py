@@ -128,7 +128,7 @@ def generate_data(
     y_data = []
 
     for _ in range(T):
-        p_new = p_true[-1] + np.random.randn(2) * lambda_p
+        p_new = p_true[-1] + np.random.randn(2) * lambda_p   # (5)
         q_new = q_true[-1] + np.random.randn(2) * delta_q * Q_SCALE
 
         p_true.append(p_new)
@@ -137,7 +137,7 @@ def generate_data(
         G = compute_G((float(p_new[0]), float(p_new[1])), sensors)
         noise = np.random.multivariate_normal(np.zeros(L), R)
 
-        y = G @ q_new + noise
+        y = G @ q_new + noise       # (s 42)
         y_data.append(y)
 
     return np.array(p_true), np.array(q_true), np.array(y_data)
@@ -185,7 +185,7 @@ class Particle:
 # =========================
 
 
-def init_particles(N: int) -> List[Particle]:
+def init_particles(n: int) -> List[Particle]:
     """
     Инициализация множества частиц с одинаковыми начальными весами.
 
@@ -193,13 +193,13 @@ def init_particles(N: int) -> List[Particle]:
     равномерно распределённые вокруг нуля.
 
     Args:
-        N: Количество частиц для инициализации.
+        n: Количество частиц для инициализации.
 
     Returns:
         List[Particle]: Список инициализированных частиц с весом 1/N каждая.
     """
     particles: List[Particle] = []
-    for _ in range(N):
+    for _ in range(n):
         p = np.random.randn(2) * 0.5
         q_mean = np.random.randn(2) * Q_SCALE
         q_cov = (Q_SCALE**2) * 0.5 * np.eye(2)
@@ -244,7 +244,7 @@ def effective_sample_size(particles: List[Particle]) -> float:
     Вычисление эффективного размера выборки для набора взвешенных частиц.
 
     Эффективный размер выборки (ESS) используется для определения необходимости
-    переsampleния. Низкое значение ESS указывает на вырождение весов.
+    ресемплинга. Низкое значение ESS указывает на вырождение весов.
 
     ESS = 1 / sum(w_i^2)
 
@@ -265,23 +265,23 @@ def effective_sample_size(particles: List[Particle]) -> float:
 
 def systematic_resample(particles: List[Particle]) -> List[Particle]:
     """
-    Систематическое переsampleние частиц на основе их весов.
+    Систематическое сэмплирование частиц на основе их весов.
 
-    Реализует систематическое переsampleние, которое сохраняет разнообразие частиц
-    лучше, чем многочисленное переsampleние. Частицы с высокими весами создаются
+    Реализует систематическое сэмплирование, которое сохраняет разнообразие частиц
+    лучше, чем многочисленное сэмплирование. Частицы с высокими весами создаются
     в несколько копий, а с низкими весами удаляются.
 
     Args:
-        particles: Список частиц с весами для переsampleния.
+        particles: Список частиц с весами для сэмплирования.
 
     Returns:
-        List[Particle]: Новый список частиц, переsampleненных на основе весов,
+        List[Particle]: Новый список частиц, ресемплированный на основе весов,
                        все с одинаковым весом 1/N.
     """
     N = len(particles)
     weights = np.array([p.weight for p in particles])
 
-    positions = (np.arange(N) + np.random.rand()) / N
+    positions = (np.arange(N) + np.random.rand()) / N       # (s36)
     cumulative = np.cumsum(weights)
 
     indexes = np.zeros(N, dtype=int)
@@ -335,7 +335,7 @@ def rbpf_step(
 
     Args:
         particles: Список частиц с текущим состоянием.
-        y: Вектор наблюдений магнитного поля размер (L,).
+        y: Вектор наблюдений магнитного поля размер (L, 3).
         sensors: Список 3D координат датчиков размер (L, 3).
         lambda_p: Стандартное отклонение шума движения позиции (м).
         delta_q: Коэффициент масштаба шума движения момента.
@@ -353,14 +353,14 @@ def rbpf_step(
     for p in particles:
 
         # --- propagate
-        p.p = p.p + np.random.randn(2) * lambda_p
+        p.p = p.p + np.random.randn(2) * lambda_p      # (s 46, 2)
 
         # --- KF predict
-        q_mean_pred = p.q_mean
+        q_mean_pred = p.q_mean          # (s 46, 1)
         q_cov_pred = p.q_cov + (delta_q**2) * (Q_SCALE**2) * np.eye(2)
 
         # --- model
-        G = compute_G((float(p.p[0]), float(p.p[1])), sensors)
+        G = compute_G((float(p.p[0]), float(p.p[1])), sensors)      # (s 46, 3)
 
         S = G @ q_cov_pred @ G.T + R
 
@@ -376,14 +376,13 @@ def rbpf_step(
         except np.linalg.LinAlgError:
             likelihood = 1e-300
 
-        # --- ключевая разница
-        if accumulate:
+        if accumulate:          # (s 43)
             p.weight *= likelihood
         else:
             p.weight = likelihood
 
         # --- KF update
-        K = q_cov_pred @ G.T @ np.linalg.inv(S)
+        K = q_cov_pred @ G.T @ np.linalg.inv(S)     # (s 47, 4)
 
         p.q_mean = q_mean_pred + K @ innovation
         p.q_cov = (np.eye(2) - K @ G) @ q_cov_pred
