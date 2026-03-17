@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.signal import correlate
 from scipy.optimize import least_squares
+from typing import Tuple
 import matplotlib.pyplot as plt
 
 
@@ -8,15 +9,23 @@ import matplotlib.pyplot as plt
 # Constants
 # =========================
 
-FS = 100000  # Hz
-C = 1125     # ft/s
+FS = 100000  # Hz - частота дискретизации
+C = 1125     # ft/s - скорость звука в футах в секунду
 
 
 # =========================
 # Load data
 # =========================
 
-def load_data():
+def load_data() -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Загружает данные передатчиков и приёмника из файлов.
+    
+    Returns:
+        Кортеж содержащий:
+        - s: Массив сигналов передатчиков размером (4, N)
+        - r: Массив сигнала приёмника размером (N,)
+    """
     s = np.loadtxt("data_files/Transmitter.txt")  # shape: (4, N)
     r = np.loadtxt("data_files/Receiver.txt")     # shape: (N,)
     return s, r
@@ -26,9 +35,21 @@ def load_data():
 # Estimate delays
 # =========================
 
-def estimate_delays(s, r):
-
-    delays = []
+def estimate_delays(s: np.ndarray, r: np.ndarray) -> np.ndarray:
+    """
+    Оценивает задержки между сигналами передатчиков и приёмника.
+    
+    Использует кросс-корреляцию для нахождения временных сдвигов между
+    сигналами каждого передатчика и приёмника.
+    
+    Args:
+        s: Массив сигналов передатчиков размером (4, N)
+        r: Массив сигнала приёмника размером (N,)
+    
+    Returns:
+        Массив оценённых задержек размером (4,) в секундах
+    """
+    delays: list = []
 
     for i in range(s.shape[0]):
         corr = correlate(r, s[i], mode='full')
@@ -45,8 +66,21 @@ def estimate_delays(s, r):
 # Multilateration
 # =========================
 
-def residuals(p, speakers, distances):
-
+def residuals(p: np.ndarray, speakers: np.ndarray, distances: np.ndarray) -> np.ndarray:
+    """
+    Вычисляет вектор невязок для задачи многолатерации.
+    
+    Каждый элемент вектора представляет разницу между расчётным расстоянием
+    от точки до передатчика и измеренным расстоянием.
+    
+    Args:
+        p: Оцениваемая позиция размером (3,) [x, y, z]
+        speakers: Позиции передатчиков размером (4, 3)
+        distances: Измеренные расстояния до передатчиков размером (4,)
+    
+    Returns:
+        Вектор невязок размером (4,)
+    """
     res = []
 
     for i in range(len(speakers)):
@@ -56,16 +90,27 @@ def residuals(p, speakers, distances):
     return np.array(res)
 
 
-def estimate_position(distances):
-
+def estimate_position(distances: np.ndarray) -> np.ndarray:
+    """
+    Оценивает трёхмерную позицию на основе расстояний до четырёх передатчиков.
+    
+    Решает задачу многолатерации (multilateration) методом наименьших квадратов,
+    исходя из известных позиций четырёх передатчиков и расстояний до них.
+    
+    Args:
+        distances: Расстояния до четырёх передатчиков размером (4,)
+    
+    Returns:
+        Оценённая позиция размером (3,) [x, y, z] в футах
+    """
     speakers = np.array([
         [0, 0, 10],
         [20, 0, 10],
         [0, 20, 10],
         [20, 20, 10]
-    ])
+    ], dtype=float)
 
-    x0 = np.array([10, 10, 5])  # начальное приближение
+    x0 = np.array([10, 10, 5], dtype=float)  # начальное приближение
 
     res = least_squares(
         residuals,
@@ -80,17 +125,26 @@ def estimate_position(distances):
 # Main
 # =========================
 
-def main():
-
+def main() -> None:
+    """
+    Основная функция для локализации источника звука.
+    
+    Выполняет следующие шаги:
+    1. Загружает данные с передатчиков и приёмника
+    2. Оценивает временные задержки между сигналами
+    3. Вычисляет расстояния на основе задержек
+    4. Определяет позицию источника методом многолатерации
+    5. Выводит результат
+    """
     s, r = load_data()
 
-    # 1. задержки
+    # Оценка задержек
     T = estimate_delays(s, r)
 
-    # 2. расстояния
+    # Вычисление расстояний на основе задержек
     R = C * T
 
-    # 3. позиция
+    # Определение позиции источника
     pos = estimate_position(R)
 
     print("Estimated position:", pos)
