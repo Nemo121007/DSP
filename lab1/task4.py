@@ -34,7 +34,7 @@ T_LIDAR = np.array([0.5, 0.1, 0.5], dtype=float)
 # Math utils
 # =========================
 
-
+# (77, s 50)
 def skew(a: np.ndarray) -> np.ndarray:
     """
     Преобразует вектор в кососимметричную матрицу (skew-symmetric matrix).
@@ -48,6 +48,7 @@ def skew(a: np.ndarray) -> np.ndarray:
     return np.array([[0.0, -a[2], a[1]], [a[2], 0.0, -a[0]], [-a[1], a[0], 0.0]])
 
 
+# (77, s 51)
 def quat_mul(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
     """
     Умножение двух кватернионов.
@@ -92,6 +93,7 @@ def quat_exp(theta: np.ndarray) -> np.ndarray:
     return np.hstack([np.cos(angle / 2.0), axis * np.sin(angle / 2.0)])
 
 
+# (79, 83. s 51, s 55)
 def quat_to_R(q: np.ndarray) -> np.ndarray:
     """
     Преобразует кватернион в матрицу ориентации (матрица вращения).
@@ -205,7 +207,7 @@ def prepare_sequences(
 
     obs_lidar = []
     for i, _ in enumerate(lidar.t):
-        z = C_LIDAR @ lidar.data[i] + T_LIDAR
+        z = C_LIDAR @ lidar.data[i] + T_LIDAR       # (6, s9)
         obs_lidar.append((float(lidar.t[i]), z.astype(float)))
 
     return control, obs_gnss, obs_lidar
@@ -245,6 +247,7 @@ class ESKF:
 
         self.P: np.ndarray = np.eye(9, dtype=float)
 
+    # (2)
     def predict(self, f: np.ndarray, w: np.ndarray, dt: float) -> None:
         """
         Предсказательный шаг фильтра (update номинального состояния и ковариации).
@@ -264,7 +267,7 @@ class ESKF:
         self.p += self.v * dt + 0.5 * acc_world * dt**2
         self.v += acc_world * dt
 
-        dq = quat_exp(w * dt)
+        dq = quat_exp(w * dt)   # (82, s 54)
         self.q = quat_mul(self.q, dq)
         self.q /= np.linalg.norm(self.q)
 
@@ -282,8 +285,9 @@ class ESKF:
         Q[3:6, 3:6] = SIGMA_GYRO**2 * np.eye(3)
         Q *= dt**2
 
-        self.P = F @ self.P @ F.T + L @ Q @ L.T
+        self.P = F @ self.P @ F.T + L @ Q @ L.T     # (32)
 
+    # (2)
     def update(self, z: np.ndarray, R_meas: np.ndarray) -> None:
         """
         Коррекционный шаг фильтра (обновление состояния на основе измерения).
