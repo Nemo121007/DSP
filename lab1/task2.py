@@ -35,7 +35,7 @@ def make_spd(P: np.ndarray) -> np.ndarray:
 
 
 def motion_model(
-    state: Tuple[float, float, float], u: Tuple[float, float, float]
+        state: Tuple[float, float, float], u: Tuple[float, float, float]
 ) -> np.ndarray:
     """
     Модель движения для робота с управлением в виде [dr1, dt, dr2], где:
@@ -57,7 +57,7 @@ def motion_model(
 
 
 def jacobian_motion(
-    state: Tuple[float, float, float], u: Tuple[float, float, float]
+        state: Tuple[float, float, float], u: Tuple[float, float, float]
 ) -> np.ndarray:
     """
     Якобиан модели движения
@@ -88,7 +88,7 @@ def jacobian_motion(
 
 
 def measurement_model(
-    state: Tuple[float, float, float], landmark: Tuple[float, float]
+        state: Tuple[float, float, float], landmark: Tuple[float, float]
 ) -> np.ndarray:
     """Модель измерения для RANGE + BEARING
     Args:
@@ -115,7 +115,7 @@ def measurement_model(
 
 
 def jacobian_measurement(
-    state: Tuple[float, float, float], landmark: Tuple[float, float]
+        state: Tuple[float, float, float], landmark: Tuple[float, float]
 ) -> np.ndarray:
     """
     Якобиан модели измерения для RANGE + BEARING
@@ -156,11 +156,11 @@ R = np.diag([0.2, 0.1])  # [range, bearing]
 
 
 def ekf_step(
-    state: Tuple[float, float, float],
-    P: np.ndarray,
-    u: Tuple[float, float, float],
-    measurements: List,
-    landmarks: Dict,
+        state: Tuple[float, float, float],
+        P: np.ndarray,
+        u: Tuple[float, float, float],
+        measurements: List,
+        landmarks: Dict,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Шаг EKF для модели движения и измерения RANGE + BEARING
@@ -212,11 +212,11 @@ def ekf_step(
 
 
 def generate_sigma_points(
-    x: Tuple[float, float, float],
-    P: np.ndarray,
-    alpha: float = 0.5,
-    beta: int = 2,
-    kappa: int = 0,
+        x: Tuple[float, float, float],
+        P: np.ndarray,
+        alpha: float = 0.5,
+        beta: int = 2,
+        kappa: int = 0,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Генерация сигма-точек для UKF
@@ -259,7 +259,7 @@ def generate_sigma_points(
 
 
 def ukf_predict(
-    state: Tuple[float, float, float], P: np.ndarray, u: Tuple[float, float, float]
+        state: Tuple[float, float, float], P: np.ndarray, u: Tuple[float, float, float]
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Предсказание состояния и ковариации с помощью UKF для модели движения RANGE + BEARING
@@ -290,7 +290,7 @@ def ukf_predict(
 
 
 def ukf_update(
-    state: Tuple[float, float, float], P: np.ndarray, measurement: List, landmark: List
+        state: Tuple[float, float, float], P: np.ndarray, measurement: List, landmark: List
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Усиление состояния и ковариации с помощью UKF для модели измерения RANGE + BEARING
@@ -341,11 +341,11 @@ def ukf_update(
 
 
 def ukf_step(
-    state: Tuple[float, float, float],
-    P: np.ndarray,
-    u: Tuple[float, float, float],
-    measurements: List,
-    landmarks: List,
+        state: Tuple[float, float, float],
+        P: np.ndarray,
+        u: Tuple[float, float, float],
+        measurements: List,
+        landmarks: List,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Шаг фильтра UKF для модели движения и измерения RANGE + BEARING
@@ -379,12 +379,12 @@ def load_landmarks(path: Path) -> Dict[int, np.ndarray]:
     Файл должен содержать строки в формате:
     landmark_id x y
     Строки, начинающиеся с "#", пропускаются как комментарии.
-    
+
     Args:
         path: Путь к файлу с координатами ориентиров
-    
+
     Returns:
-        Словарь где ключи - ID ориентиров (int), 
+        Словарь где ключи - ID ориентиров (int),
         значения - массивы координат (x, y) размером (2,)
         Формат: {landmark_id: np.array([x, y]), ...}
     """
@@ -401,22 +401,22 @@ def load_landmarks(path: Path) -> Dict[int, np.ndarray]:
 def load_sensor_data(path: Path) -> Tuple[List[np.ndarray], List[List[Tuple[int, np.ndarray]]]]:
     """
     Загружает данные одометрии и датчиков (дальномера) из файла.
-    
+
     Файл должен содержать строки с тегами ODOMETRY и SENSOR в формате:
     - ODOMETRY dr1 dt dr2 (dr1, dt, dr2 - поворот перед, расстояние, поворот после)
     - SENSOR landmark_id range bearing (измерение дальности и угла до ориентира)
-    
+
     Строки, начинающиеся с "#", пропускаются как комментарии.
-    
+
     Каждой команде ODOMETRY соответствует последовательность измерений SENSOR,
     полученных после выполнения этой команды.
-    
+
     Args:
         path: Путь к файлу с данными одометрии и датчиков
-    
+
     Returns:
         Кортеж содержащий:
-        - odometry_data: список команд управления размером (N,), 
+        - odometry_data: список команд управления размером (N,),
                          каждая команда - массив [dr1, dt, dr2]:
                          * dr1: поворот перед движением (rad)
                          * dt: пройденное расстояние
@@ -467,20 +467,20 @@ def load_sensor_data(path: Path) -> Tuple[List[np.ndarray], List[List[Tuple[int,
 
 
 def run_filter(
-    odometry_data: List[np.ndarray],
-    measurements_seq: List[List[Tuple[int, np.ndarray]]],
-    landmarks: Dict[int, np.ndarray],
-    use_ukf: bool = False,
+        odometry_data: List[np.ndarray],
+        measurements_seq: List[List[Tuple[int, np.ndarray]]],
+        landmarks: Dict[int, np.ndarray],
+        use_ukf: bool = False,
 ) -> np.ndarray:
     """
     Запускает фильтр EKF или UKF для оценки траектории робота.
-    
+
     Фильтр обрабатывает последовательность управляющих команд (одометрия)
-    и соответствующих им измерений ориентиров (дальность и угол), 
+    и соответствующих им измерений ориентиров (дальность и угол),
     оценивая при этом траекторию робота.
-    
+
     Args:
-        odometry_data: Список команд управления размером (N,), 
+        odometry_data: Список команд управления размером (N,),
                        каждая команда - [dr1, dt, dr2]:
                        - dr1: поворот перед движением (rad)
                        - dt: пройденное расстояние
@@ -496,7 +496,7 @@ def run_filter(
         use_ukf: Флаг выбора фильтра:
                  - False: использовать EKF (Extended Kalman Filter)
                  - True: использовать UKF (Unscented Kalman Filter)
-    
+
     Returns:
         Массив оценённой траектории размером (N, 3),
         каждая строка содержит [x, y, theta]:

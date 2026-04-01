@@ -170,17 +170,11 @@ for i in range(num_steps):
 
     # Предсказание состояния
     r = estimated_state[2]
-    state_pred = np.array(
-        [
-            estimated_state[0]
-            + T * s_t * np.cos(r)
-            - 0.5 * T**2 * s_t * s_r * np.sin(r),
-            estimated_state[1]
-            + T * s_t * np.sin(r)
-            + 0.5 * T**2 * s_t * s_r * np.cos(r),
-            estimated_state[2] + T * s_r,
-        ]
-    )  # (7), (31)
+    state_pred = np.array([
+        estimated_state[0] + T * s_t * np.cos(r) - 0.5 * T**2 * s_t * s_r * np.sin(r),
+        estimated_state[1] + T * s_t * np.sin(r) + 0.5 * T**2 * s_t * s_r * np.cos(r),
+        estimated_state[2] + T * s_r,
+    ])  # (7), (31)
     state_pred[2] = wrap_to_pi(state_pred[2])
 
     # Вычисление матрицы Якоби
