@@ -17,7 +17,7 @@ from mpl_toolkits.mplot3d import Axes3D
 # import data
 
 
-with open("data/data.pkl", "rb") as file:
+with open("lab1/data_files/data/data.pkl", "rb") as file:
     data = pickle.load(file)
 
 # Each element of the data dictionary is stored as an item from the data dictionary, which we
