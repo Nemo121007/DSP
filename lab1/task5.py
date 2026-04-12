@@ -53,7 +53,7 @@ def estimate_delays(s: np.ndarray, r: np.ndarray) -> np.ndarray:
     delays: list = []
 
     for i in range(s.shape[0]):
-        corr = correlate(r, s[i], mode="full")      # (99, s62)
+        corr = correlate(r, s[i], mode="full")  # (99, s62)
 
         lag = np.argmax(corr) - (len(s[i]) - 1)
 

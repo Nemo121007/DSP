@@ -52,9 +52,11 @@ def generate_trajectory_and_measurements(
     if num_steps < 0:
         raise ValueError("num_steps < 0")
 
+    # Создаём вектор состояний из массива
     x0 = np.asarray(x0, dtype=float).reshape(
         3,
     )
+    # Матрица ковариации шума изменений
     R = np.asarray(R, dtype=float)
     if R.shape != (3, 3):
         raise ValueError("R должен иметь размерность (3, 3)")
@@ -82,12 +84,16 @@ def generate_trajectory_and_measurements(
         history_measurements.append(measurement)
 
         # Обновление истинного состояния для следующего шага
+        # Скорости колёс (условия задачи)
         s_L = W_L * u_L
         s_R = W_R * u_R
+        # Скорость передвижения робота (условия задачи)
         s_t = (s_R + s_L) / 2.0
+        # Скорость вращения робота (условия задачи)
         s_r = (s_R - s_L) / (2.0 * B)
 
         r = true_state[2]
+        # Уравнения движения робота (условия задачи)
         true_state = np.array(
             [
                 true_state[0]
@@ -163,18 +169,28 @@ for i in range(num_steps):
     # ЭТАП ПРЕДСКАЗАНИЯ
 
     # Вычисляем линейные и угловые скорости
+    # Скорости колёс (условия задачи)
     s_L = W_L * u_L
     s_R = W_R * u_R
+    # Скорость передвижения робота (условия задачи)
     s_t = (s_R + s_L) / 2.0
+    # Скорость вращения робота (условия задачи)
     s_r = (s_R - s_L) / (2.0 * B)
 
     # Предсказание состояния
     r = estimated_state[2]
-    state_pred = np.array([
-        estimated_state[0] + T * s_t * np.cos(r) - 0.5 * T**2 * s_t * s_r * np.sin(r),
-        estimated_state[1] + T * s_t * np.sin(r) + 0.5 * T**2 * s_t * s_r * np.cos(r),
-        estimated_state[2] + T * s_r,
-    ])  # (7), (31)
+    # Уравнения движения робота (условия задачи)
+    state_pred = np.array(
+        [
+            estimated_state[0]
+            + T * s_t * np.cos(r)
+            - 0.5 * T**2 * s_t * s_r * np.sin(r),
+            estimated_state[1]
+            + T * s_t * np.sin(r)
+            + 0.5 * T**2 * s_t * s_r * np.cos(r),
+            estimated_state[2] + T * s_r,
+        ]
+    )  # (7), (31)
     state_pred[2] = wrap_to_pi(state_pred[2])
 
     # Вычисление матрицы Якоби
@@ -186,14 +202,16 @@ for i in range(num_steps):
         ]
     )  # (25)
 
-    # Предсказание ковариации
+    # Матрица ковариации ошибки предсказанного состояния (представление неуверенности в предсказанном положении робота)
     P_pred = F @ P @ F.T + Q  # (8), (32)
 
     # ЭТАП КОРРЕКЦИИ
 
     # Усиление Калмана
     # H - единичная матрица, поэтому S = P_pred + R
+    # Ковариационная матрица инновации(невязки)(мера ожидаемой неуверенности в разнице между измерением и предсказанием)
     S = P_pred + R  # (9), (33)
+    # Усиление Калмана (насколько необходимо сместить оценку в зависимости от нового измерения)
     K = P_pred @ np.linalg.inv(S)  # (10), (34)
 
     # Обновление состояния с помощью измерения
@@ -203,7 +221,7 @@ for i in range(num_steps):
     estimated_state = state_pred + K @ innovation  # (11), (35)
     estimated_state[2] = wrap_to_pi(estimated_state[2])
 
-    # Обновление ковариации
+    # Обновление ковариации оценки состояния
     P = P_pred - K @ S @ K.T  # (12), (36)
 
     # Сохраняем оценку
