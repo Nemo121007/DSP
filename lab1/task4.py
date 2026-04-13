@@ -226,29 +226,46 @@ class ESKF:
         if dt <= 0:
             return
 
+        # Получаем матрицу поворота из кватерниона
         R = quat_to_R(self.q)
         acc_world = R @ f + G
 
+        # Изменение положения (условия задачи)
         self.p += self.v * dt + 0.5 * acc_world * dt**2
+        # Изменение скорости (условия задачи)
         self.v += acc_world * dt
 
+        # Умножение кватернионов
         dq = quat_exp(w * dt)
+        # Обновление ориентации
         self.q = quat_mul(self.q, dq)
+        # Нормализация кватерниона
         self.q /= np.linalg.norm(self.q)
 
+        # Матрица Якоби системы (F)
         F = np.eye(9)
+        # Связь ошибки позиции с ошибкой скорости
         F[0:3, 3:6] = np.eye(3) * dt
+        # Связь ошибки скорости с ошибкой ориентации
         F[3:6, 6:9] = -skew(R @ f) * dt
 
+        # Матрица Якоби по шуму (L)
         L = np.zeros((9, 6))
+        # Шум акселерометра влияет на скорость
         L[3:6, 0:3] = np.eye(3)
+        # Шум гироскопа влияет на ориентацию
         L[6:9, 3:6] = np.eye(3)
 
+        # Масштабирование описано в условии
         Q = np.zeros((6, 6))
+        # Дисперсия шума акселерометра
         Q[0:3, 0:3] = SIGMA_ACC**2 * np.eye(3)
+        # Дисперсия шума гироскопа
         Q[3:6, 3:6] = SIGMA_GYRO**2 * np.eye(3)
+        # Масштабирование шума (дискретизация)
         Q *= dt**2
 
+        # Матрица Якоби по шуму "переносит" шум из пространства датчиков в пространство состояния (8)
         self.P = F @ self.P @ F.T + L @ Q @ L.T
 
     def update(self, z: np.ndarray, R_meas: np.ndarray) -> None:
@@ -259,22 +276,33 @@ class ESKF:
             z (np.ndarray): Вектор измерений позиции (3,).
             R_meas (np.ndarray): Матрица ковариации шума измерений формы (3, 3).
         """
+        # ДЛя анализа выделяем только компоненты координат
         H = np.zeros((3, 9))
         H[:, 0:3] = np.eye(3)
 
+        # Вычисление невязки
         y = z - self.p
+        # Вычисление ковариации невязки
         S = H @ self.P @ H.T + R_meas
+        # Вычисление коэффициента Калмана
         K = self.P @ H.T @ np.linalg.inv(S)
 
+        # Оценка вектора ошибки
+        # dx[0:3] - ошибка в позиции
+        # dx[3:6] - ошибка в скорости
+        # dx[6:9] - ошибка в ориентации
         dx = K @ y
 
+        # Добавляем оценку ошибки к состоянию
         self.p += dx[0:3]
         self.v += dx[3:6]
 
+        # Добавление нормализованного вектора, полученного из кватерниона
         dtheta = dx[6:9]
         self.q = quat_mul(quat_exp(dtheta), self.q)
         self.q /= np.linalg.norm(self.q)
 
+        # Обновление ковариации состояния
         self.P = (np.eye(9) - K @ H) @ self.P
 
     def update_combined(
@@ -300,11 +328,20 @@ class ESKF:
 
         # Матрица наблюдения H (6x9)
         # Производные по позиции для обеих частей равны I
+        # H =
+        # [
+        #  [I, 0, 0],
+        #  [I, 0, 0]
+        # ]
         H = np.zeros((6, 9))
         H[0:3, 0:3] = np.eye(3)  # Для GNSS
         H[3:6, 0:3] = np.eye(3)  # Для LiDAR
 
         # Матрица ковариации измерений R (6x6)
+        # R = [
+        #   [R_gnss, 0],
+        #   [0, R_lidar]
+        # ]
         R_meas = np.zeros((6, 6))
         R_meas[0:3, 0:3] = R_gnss
         R_meas[3:6, 3:6] = R_lidar
@@ -350,7 +387,8 @@ def run_filter(data: Dict[str, Any]) -> np.ndarray:
 
     gnss_idx = 0
     lidar_idx = 0
-    EPS = 0.05
+    EPS = 0.05  # Допуск для сравнения времени измерений
+    count_combine, count_gnss, count_lidar = 0, 0, 0
 
     R_gnss = SIGMA_GNSS**2 * np.eye(3)
     R_lidar = SIGMA_LIDAR**2 * np.eye(3)
@@ -376,17 +414,24 @@ def run_filter(data: Dict[str, Any]) -> np.ndarray:
             )
             gnss_idx += 1
             lidar_idx += 1
+
+            count_combine += 1
         elif has_gnss:
             # Обычное обновление GNSS
             eskf.update(obs_gnss[gnss_idx][1], R_gnss)
             gnss_idx += 1
+
+            count_gnss += 1
         elif has_lidar:
             # Обычное обновление LiDAR
             eskf.update(obs_lidar[lidar_idx][1], R_lidar)
             lidar_idx += 1
 
+            count_lidar += 1
+
         traj.append(eskf.p.copy())
 
+    print(f"count_combine: {count_combine}, count_gnss: {count_gnss}, count_lidar: {count_lidar}")
     return np.array(traj)
 
 
@@ -396,7 +441,6 @@ def run_filter(data: Dict[str, Any]) -> np.ndarray:
 def plot_trajectory(traj: np.ndarray, gt: Any) -> None:
     """
     Отрисовывает 3D-график оцененной траектории и истинной (Ground Truth).
-    
     Args:
         traj (np.ndarray): Оцененная траектория формы (N, 3).
         gt (Any): Объект Ground Truth, содержащий истинную позицию.
