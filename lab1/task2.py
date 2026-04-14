@@ -4,11 +4,10 @@ from typing import Dict, List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 # =========================
 # Utils
 # =========================
-
-
 def wrap_to_pi(theta: float) -> float:
     """
     Нормализует угол(ы) в диапазон [-pi, pi].
@@ -139,7 +138,6 @@ def jacobian_measurement(
 # =========================
 # Noise
 # =========================
-
 # Ковариационная матрица шума движения
 Q = np.diag([0.2, 0.2, 0.1])
 # Ковариационная матрица шума измерений
@@ -149,8 +147,6 @@ R = np.diag([0.2, 0.1])  # [range, bearing]
 # =========================
 # EKF
 # =========================
-
-
 def ekf_step(
     state: Tuple[float, float, float],
     P: np.ndarray,

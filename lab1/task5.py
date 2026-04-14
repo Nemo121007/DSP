@@ -9,7 +9,7 @@ from scipy.signal import correlate
 # =========================
 
 FS = 100000  # Hz - частота дискретизации
-C = 332  # ft/s - скорость звука в метрах в секунду
+C = 1125  # ft/s - скорость звука в метрах в секунду
 
 
 # =========================
@@ -48,7 +48,7 @@ def estimate_delays(s: np.ndarray, r: np.ndarray) -> np.ndarray:
     for i in range(s.shape[0]):
         # correlate(s, r) ищет, на сколько нужно сдвинуть s, чтобы получить r.
         # Для физической задачи r(t) ~ s(t - T), пик будет на положительном лаге +T.
-        corr = correlate(s[i], r, mode="full")
+        corr = correlate(s[i], r, mode="valid")
 
         # Индекс пика корреляции
         lag_index = np.argmax(corr)
@@ -84,7 +84,7 @@ def residuals(p: np.ndarray, speakers: np.ndarray, distances: np.ndarray) -> np.
 
     for i, speaker in enumerate(speakers):
         # f_i(x)
-        dist = np.linalg.norm(p - speaker)
+        dist = np.linalg.norm(speaker - p)
         # y_i - f_i(x)
         res.append(dist - distances[i])
 
@@ -105,10 +105,10 @@ def estimate_position(distances: np.ndarray) -> np.ndarray:
         Оценённая позиция размером (3,) [x, y, z] в футах
     """
     speakers = np.array(
-        [[0, 0, 10], [20, 0, 10], [0, 20, 10], [20, 20, 10]], dtype=float
+        [[0, 0, 10], [20, 0, 10], [20, 20, 10], [0, 20, 10]], dtype=float
     )
 
-    x0 = np.array([10, 10, 5], dtype=float)  # начальное приближение
+    x0 = np.array([1, 1, 1], dtype=float)  # начальное приближение
 
     res = least_squares(residuals, x0, args=(speakers, distances))
 
