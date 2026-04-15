@@ -2,14 +2,14 @@ from typing import Tuple
 
 import numpy as np
 from scipy.optimize import least_squares
-from scipy.signal import correlate
+from scipy.signal import correlate, correlation_lags
 
 # =========================
 # Constants
 # =========================
 
-FS = 100000  # Hz - частота дискретизации
-C = 1125  # ft/s - скорость звука в метрах в секунду
+FS = 100000.0   # Hz
+C = 1125.0      # ft/s
 
 
 # =========================
@@ -20,126 +20,101 @@ def load_data() -> Tuple[np.ndarray, np.ndarray]:
     Загружает данные передатчиков и приёмника из файлов.
 
     Returns:
-        Кортеж содержащий:
-        - s: Массив сигналов передатчиков размером (4, N)
-        - r: Массив сигнала приёмника размером (N,)
+        s: массив сигналов передатчиков формы (4, N)
+        r: массив сигнала приёмника формы (N,)
     """
-    s = np.loadtxt("data_files/Transmitter.txt")  # shape: (4, N)
-    r = np.loadtxt("data_files/Receiver.txt")  # shape: (N,)
+    s = np.loadtxt("data_files/Transmitter.txt", dtype=np.float64)
+    r = np.loadtxt("data_files/Receiver.txt", dtype=np.float64)
+
+    if s.ndim != 2:
+        raise ValueError(f"Transmitter.txt must be 2D, got shape {s.shape}")
+    if r.ndim != 1:
+        raise ValueError(f"Receiver.txt must be 1D, got shape {r.shape}")
+    if s.shape[0] != 4:
+        raise ValueError(f"Expected 4 transmitter signals, got shape {s.shape}")
+
     return s, r
 
 
 # =========================
 # Estimate delays
 # =========================
-def estimate_delays(s: np.ndarray, r: np.ndarray) -> np.ndarray:
+def estimate_delays(transmitters: np.ndarray, received: np.ndarray) -> np.ndarray:
     """
-    Оценивает задержки между сигналами передатчиков и приёмника.
-    
-    Args:
-        s: Массив сигналов передатчиков размером (4, N)
-        r: Массив сигнала приёмника размером (N,)
-        
+    Оценивает задержки между каждым сигналом передатчика и сигналом приёмника.
+
+    Для корректного извлечения задержки используется:
+        correlate(received, transmitter, mode="full")
+        correlation_lags(len(received), len(transmitter), mode="full")
+
     Returns:
-        Массив оцененных задержек в секундах для каждого передатчика
+        delays: массив задержек в секундах, shape (4,)
     """
-    delays: list = []
+    delays = np.zeros(transmitters.shape[0], dtype=np.float64)
 
-    for i in range(s.shape[0]):
-        # correlate(s, r) ищет, на сколько нужно сдвинуть s, чтобы получить r.
-        # Для физической задачи r(t) ~ s(t - T), пик будет на положительном лаге +T.
-        corr = correlate(s[i], r, mode="valid")
+    for i, transmitter in enumerate(transmitters):
+        corr = correlate(received, transmitter, mode="full")
+        lags = correlation_lags(len(received), len(transmitter), mode="full")
 
-        # Индекс пика корреляции
-        lag_index = np.argmax(corr)
+        peak_index = np.argmax(corr)
+        lag_samples = lags[peak_index]
 
-        # Нулевой лаг находится в индексе len(r) - 1
-        zero_lag_index = len(r) - 1
+        delays[i] = lag_samples / FS
 
-        # Вычисляем сдвиг в отсчетах
-        lag = lag_index - zero_lag_index
-
-        T = lag / FS
-        delays.append(T)
-
-    return np.array(delays)
+    return delays
 
 
+# =========================
+# Multilateration
+# =========================
 def residuals(p: np.ndarray, speakers: np.ndarray, distances: np.ndarray) -> np.ndarray:
     """
-    Вычисляет вектор невязок.
+    Вектор невязок для задачи multilateration.
 
-    Каждый элемент вектора представляет разницу между расчётным расстоянием
-    от точки до передатчика и измеренным расстоянием.
-
-    Args:
-        p: Оцениваемая позиция размером (3,) [x, y, z]
-        speakers: Позиции передатчиков размером (4, 3)
-        distances: Измеренные расстояния до передатчиков размером (4,)
-
-    Returns:
-        Вектор невязок размером (4,)
+    p: (3,) -> [x, y, z]
+    speakers: (4, 3)
+    distances: (4,)
     """
-    res = []
-
-    for i, speaker in enumerate(speakers):
-        # f_i(x)
-        dist = np.linalg.norm(speaker - p)
-        # y_i - f_i(x)
-        res.append(dist - distances[i])
-
-    return np.array(res)
+    return np.linalg.norm(speakers - p, axis=1) - distances
 
 
 def estimate_position(distances: np.ndarray) -> np.ndarray:
     """
-    Оценивает трёхмерную позицию на основе расстояний до четырёх передатчиков.
+    Оценивает 3D-позицию источника по расстояниям до четырёх передатчиков.
 
-    Решает задачу многолатерации (multilateration) методом наименьших квадратов,
-    исходя из известных позиций четырёх передатчиков и расстояний до них.
-
-    Args:
-        distances: Расстояния до четырёх передатчиков размером (4,)
-
-    Returns:
-        Оценённая позиция размером (3,) [x, y, z] в футах
+    distances: shape (4,)
+    returns: shape (3,)
     """
     speakers = np.array(
-        [[0, 0, 10], [20, 0, 10], [20, 20, 10], [0, 20, 10]], dtype=float
+        [
+            [0.0, 0.0, 10.0],
+            [20.0, 0.0, 10.0],
+            [20.0, 20.0, 10.0],
+            [0.0, 20.0, 10.0],
+        ],
+        dtype=np.float64,
     )
 
-    x0 = np.array([1, 1, 1], dtype=float)  # начальное приближение
+    x0 = np.array([1.0, 1.0, 1.0], dtype=np.float64)
 
-    res = least_squares(residuals, x0, args=(speakers, distances))
-
-    return res.x
+    result = least_squares(residuals, x0, args=(speakers, distances))
+    return result.x
 
 
 # =========================
 # Main
 # =========================
 def main() -> None:
-    """
-    Основная функция для локализации источника звука.
+    transmitters, received = load_data()
 
-    Выполняет следующие шаги:
-    1. Загружает данные с передатчиков и приёмника
-    2. Оценивает временные задержки между сигналами
-    3. Вычисляет расстояния на основе задержек
-    4. Определяет позицию источника
-    5. Выводит результат
-    """
-    s, r = load_data()
+    # Задержки в секундах
+    delays = estimate_delays(transmitters, received)
 
-    # Оценка задержек
-    T = estimate_delays(s, r)
+    # Расстояния в футах
+    distances = C * delays
 
-    # Вычисление расстояний на основе задержек
-    # y_i = f(x) + ξ
-    R = C * T
-
-    # Определение позиции источника
-    pos = estimate_position(R)
+    # Оценка позиции
+    pos = estimate_position(distances)
 
     print("Estimated position:", pos)
 
