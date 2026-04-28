@@ -174,31 +174,56 @@ def ekf_step(
     # Prediction
     F = jacobian_motion(state, u)
     state = motion_model(state, u)
-    # Матрица ковариации ошибки предсказанного состояния (представление неуверенности в предсказанном положении)
     P = F @ P @ F.T + Q
 
-    # Update
+    # Update: одно групповое обновление по всем ориентирам сразу
+    if len(measurements) == 0:
+        return state, P
+
+    z_list = []
+    z_pred_list = []
+    H_list = []
+
     for lm_id, z in measurements:
         landmark = landmarks[lm_id]
 
-        # Предсказанное значение
+        # Предсказанное значение для данного ориентира
         z_pred = measurement_model(state, landmark)
-        H = jacobian_measurement(state, landmark)
+        H_i = jacobian_measurement(state, landmark)
 
-        innovation = z - z_pred
-        innovation[1] = wrap_to_pi(float(innovation[1]))
+        z_list.append(np.asarray(z, dtype=float))
+        z_pred_list.append(z_pred)
+        H_list.append(H_i)
 
-        # Ковариационная матрица инновации(невязки)
-        # (мера ожидаемой неуверенности в разнице между измерением и предсказанием)
-        S = H @ P @ H.T + R  # (33)
-        # Усиление Калмана (насколько необходимо сместить оценку в зависимости от нового измерения)
-        K = P @ H.T @ np.linalg.inv(S)  # (34)
+    # Обобщённый вектор измерений и предсказаний
+    z = np.concatenate(z_list)          # shape: (2 * m,)
+    z_pred = np.concatenate(z_pred_list) # shape: (2 * m,)
 
-        state = state + K @ innovation  # (35)
-        state[2] = wrap_to_pi(float(state[2]))
+    # Обобщённая матрица Якобиана
+    H = np.vstack(H_list)               # shape: (2 * m, 3)
 
-        # Аддитивная модель шума
-        P = (np.eye(3) - K @ H) @ P  # (36)
+    # Инновация
+    innovation = z - z_pred
+
+    # Для каждого ориентира отдельно нормализуем угол
+    # Формат измерения: [range, bearing], [range, bearing], ...
+    innovation[1::2] = np.array([wrap_to_pi(float(a)) for a in innovation[1::2]])
+
+    # Обобщённая ковариация шума измерений
+    R_big = np.kron(np.eye(len(measurements)), R)
+
+    # Ковариационная матрица инновации
+    S = H @ P @ H.T + R_big
+
+    # Усиление Калмана
+    K = P @ H.T @ np.linalg.inv(S)
+
+    # Обновление состояния
+    state = state + K @ innovation
+    state[2] = wrap_to_pi(float(state[2]))
+
+    # Обновление ковариации — ровно в том же виде, как у тебя
+    P = (np.eye(3) - K @ H) @ P
 
     return state, P
 

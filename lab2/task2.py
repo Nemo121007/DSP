@@ -1,0 +1,104 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+# -----------------------------
+# Параметры дискретизации
+# -----------------------------
+dt = 0.01
+L = 12.0
+N = int(2 * L / dt) + 1
+t = np.linspace(-L, L, N)
+
+# Достаточно плотная частотная сетка
+nfft = 2 ** 15
+
+
+# -----------------------------
+# Сигналы
+# -----------------------------
+def x1(t):
+    return np.exp(-t**2)
+
+
+def x2(t):
+    return np.where(np.abs(t) <= 1.0, np.cos(np.pi * t / 2.0), 0.0)
+
+
+# -----------------------------
+# Численное CTFT через FFT
+# -----------------------------
+def ctft_via_fft(x, dt, nfft):
+    """
+    Приближение CTFT:
+        X(ω) = ∫ x(t)e^{-iωt}dt
+    через FFT на равномерной сетке.
+    """
+    X = dt * np.fft.fftshift(np.fft.fft(x, n=nfft))
+    omega = 2.0 * np.pi * np.fft.fftshift(np.fft.fftfreq(nfft, d=dt))
+    return omega, X
+
+
+# -----------------------------
+# Теоретические спектры
+# -----------------------------
+def X1_theory(omega):
+    # ∫ exp(-t^2) e^{-iωt} dt = sqrt(pi) * exp(-ω^2/4)
+    return np.sqrt(np.pi) * np.exp(-omega**2 / 4.0)
+
+
+def X2_theory(omega):
+    # X2(ω) = ∫_{-1}^{1} cos(pi t/2) e^{-iωt} dt
+    #       = sinc((ω - π/2)/π) + sinc((ω + π/2)/π)
+    a = np.pi / 2.0
+    return np.sinc((omega - a) / np.pi) + np.sinc((omega + a) / np.pi)
+
+
+# -----------------------------
+# Расчёт
+# -----------------------------
+x1_s = x1(t)
+x2_s = x2(t)
+
+omega1, X1_num = ctft_via_fft(x1_s, dt, nfft)
+omega2, X2_num = ctft_via_fft(x2_s, dt, nfft)
+
+X1_th = X1_theory(omega1)
+X2_th = X2_theory(omega2)
+
+# Для сравнения берём умеренный диапазон частот
+wmax = 15.0
+m1 = np.abs(omega1) <= wmax
+m2 = np.abs(omega2) <= wmax
+
+err1 = np.max(np.abs(np.abs(X1_num[m1]) - X1_th[m1]))
+err2 = np.max(np.abs(np.abs(X2_num[m2]) - np.abs(X2_th[m2])))
+
+print(f"Max abs error for x1(t) = exp(-t^2): {err1:.6e}")
+print(f"Max abs error for x2(t): {err2:.6e}")
+
+
+# -----------------------------
+# Графики
+# -----------------------------
+plt.figure(figsize=(10, 4))
+plt.plot(omega1[m1], np.abs(X1_num[m1]), label=r'Численно: $|\mathrm{FFT}|\cdot \Delta t$')
+plt.plot(omega1[m1], X1_th[m1], '--', label='Теория')
+plt.title(r'Сигнал $x_1(t)=e^{-t^2}$')
+plt.xlabel(r'$\omega$')
+plt.ylabel(r'$|X(\omega)|$')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(10, 4))
+plt.plot(omega2[m2], np.abs(X2_num[m2]), label=r'Численно: $|\mathrm{FFT}|\cdot \Delta t$')
+plt.plot(omega2[m2], np.abs(X2_th[m2]), '--', label='Теория')
+plt.title(r'Сигнал $x_2(t)=\cos(\pi t/2),\ |t|\leq 1$')
+plt.xlabel(r'$\omega$')
+plt.ylabel(r'$|X(\omega)|$')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
