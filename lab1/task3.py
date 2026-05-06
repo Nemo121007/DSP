@@ -277,7 +277,6 @@ def rbpf_step(
     radius: float,
     omega: float,
     sigma_theta: float = 0.02,
-    accumulate: bool = True,
 ) -> List[Particle]:
     """
     Выполняет один шаг фильтра частиц Rao-Blackwellized Particle Filter.
@@ -333,10 +332,7 @@ def rbpf_step(
             likelihood = 1e-300
             innovation = np.zeros(L)
 
-        if accumulate:
-            p.weight *= likelihood
-        else:
-            p.weight = likelihood
+        p.weight *= likelihood
 
         # --- KF update
         # Обновление весов и линейной части
@@ -358,8 +354,7 @@ def rbpf_step(
 # Run
 # =========================
 def run_rbpf(
-    y_data: np.ndarray, sensors: List[np.ndarray], N: int = 200, accumulate: bool = True
-) -> np.ndarray:
+    y_data: np.ndarray, sensors: List[np.ndarray], N: int = 200) -> np.ndarray:
     """
     Запускает RBPF фильтр для полного набора измерений и возвращает оценку траектории.
 
@@ -367,7 +362,6 @@ def run_rbpf(
         y_data (np.ndarray): Массив измерений для всех временных шагов.
         sensors (List[np.ndarray]): Список сенсоров.
         N (int): Количество используемых частиц.
-        accumulate (bool): Режим накопления весов (влияет на ресэмплинг).
 
     Returns:
         np.ndarray: Оценка позиций p (x, y) для каждого временного шага, усредненная по весам частиц.
@@ -394,7 +388,6 @@ def run_rbpf(
             sigma_theta=0.1,
             radius=radius,
             omega=omega,
-            accumulate=accumulate,
         )
 
         p_mean = np.sum([p.weight * p.p for p in particles], axis=0)
@@ -422,15 +415,13 @@ if __name__ == "__main__":
         T, sensors, delta_q, R, radius=1.5, omega=0.1
     )
 
-    est_acc = run_rbpf(y_data, sensors, accumulate=True)
-    est_noacc = run_rbpf(y_data, sensors, accumulate=False)
+    est_acc = run_rbpf(y_data, sensors)
 
     # Plot
     plt.figure(figsize=(10, 8))
 
     plt.plot(p_true[:, 0], p_true[:, 1], label="True", linewidth=2)
     plt.plot(est_acc[:, 0], est_acc[:, 1], "--", label="RBPF (accumulate)")
-    plt.plot(est_noacc[:, 0], est_noacc[:, 1], ":", label="RBPF (no accumulate)")
 
     sx = [s[0] for s in sensors]
     sy = [s[1] for s in sensors]
