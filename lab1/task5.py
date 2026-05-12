@@ -42,11 +42,6 @@ def load_data() -> Tuple[np.ndarray, np.ndarray]:
 def estimate_delays(transmitters: np.ndarray, received: np.ndarray) -> np.ndarray:
     """
     Оценивает задержки между каждым сигналом передатчика и сигналом приёмника.
-
-    Для корректного извлечения задержки используется:
-        correlate(received, transmitter, mode="full")
-        correlation_lags(len(received), len(transmitter), mode="full")
-
     Returns:
         delays: массив задержек в секундах, shape (4,)
     """
