@@ -83,7 +83,7 @@ def notch_harmonics(x: np.ndarray, fs: float, f0: float,
         fk = f0 * k
         if fk >= fs / 2 - 1:
             break
-        b, a = signal.iirnotch(f0=fk, Q=q, fs=fs)
+        b, a = signal.iirnotch(fk, Q=q, fs=fs)
         y = signal.filtfilt(b, a, y)
     return y
 
