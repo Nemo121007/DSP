@@ -31,8 +31,7 @@ def x2(t):
 def ctft_via_fft(x, dt, nfft):
     """
     Приближение CTFT:
-        X(ω) = ∫ x(t)e^{-iωt}dt
-    через FFT на равномерной сетке.
+        X(ω) = ∫ x(t)e^{-iωt}dt через FFT на равномерной сетке.
     """
     X = dt * np.fft.fftshift(np.fft.fft(x, n=nfft))
     omega = 2.0 * np.pi * np.fft.fftshift(np.fft.fftfreq(nfft, d=dt))

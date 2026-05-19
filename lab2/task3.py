@@ -2,8 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
 from scipy.io import wavfile
-from scipy.signal import iirnotch, filtfilt
 
+# =========================
+# Загрузка и приведение к float
+# =========================
 fs, x = wavfile.read("data/tune.wav")
 
 if x.dtype == np.int16:
@@ -18,8 +20,12 @@ else:
 if x.ndim == 2:
     x = x.mean(axis=1)
 
+print(f"fs = {fs} Hz, duration = {len(x)/fs:.2f} s")
+
+# =========================
 # Короткий фрагмент waveform
-dur = 0.1  # секунд
+# =========================
+dur = 0.1
 n_show = int(dur * fs)
 t = np.arange(n_show) / fs
 
@@ -32,19 +38,9 @@ plt.grid(True)
 plt.tight_layout()
 plt.show()
 
-# Welch PSD
-f, pxx = signal.welch(x, fs=fs, window='hann', nperseg=8192, noverlap=4096)
-plt.figure(figsize=(14, 4))
-plt.plot(f, 10 * np.log10(pxx + 1e-18))
-plt.title("Welch PSD")
-plt.xlabel("Frequency, Hz")
-plt.ylabel("Power, dB")
-plt.grid(True)
-plt.xlim(0, fs / 2)
-plt.tight_layout()
-plt.show()
-
+# =========================
 # Спектрограмма
+# =========================
 plt.figure(figsize=(14, 5))
 plt.specgram(x, NFFT=2048, Fs=fs, noverlap=1536)
 plt.title("Spectrogram")
@@ -54,65 +50,48 @@ plt.colorbar(label="dB")
 plt.tight_layout()
 plt.show()
 
-fs, x = wavfile.read("data/tune.wav")
-
-# Приведение к float
-if x.dtype == np.int16:
-    x = x.astype(np.float64) / 32768.0
-elif x.dtype == np.int32:
-    x = x.astype(np.float64) / 2147483648.0
-elif x.dtype == np.uint8:
-    x = (x.astype(np.float64) - 128) / 128.0
-else:
-    x = x.astype(np.float64)
-
-# Если стерео — переводим в моно
-if x.ndim == 2:
-    x = x.mean(axis=1)
-
-print(f"fs = {fs} Hz, duration = {len(x)/fs:.2f} s")
-
 # =========================
-# Поиск пика помехи по Welch PSD
+# Поиск узкополосной помехи по обычному FFT
 # =========================
-f, pxx = signal.welch(x, fs=fs, window="hann", nperseg=8192, noverlap=4096)
-pxx_db = 10 * np.log10(pxx + 1e-18)
+X = np.fft.rfft(x)
+freqs = np.fft.rfftfreq(len(x), d=1 / fs)
+amp = np.abs(X)
 
-# Ищем самый сильный пик выше 1 кГц, чтобы не ловить музыкальный фундамент
-mask = f > 1000
-f2 = f[mask]
-p2 = pxx_db[mask]
+# Ищем самый сильный пик выше 1 кГц
+mask = freqs > 1000
+freqs_hf = freqs[mask]
+amp_hf = amp[mask]
 
-peaks, props = signal.find_peaks(p2, prominence=10)
+peaks, props = signal.find_peaks(amp_hf, prominence=np.max(amp_hf) * 0.05)
 if len(peaks) == 0:
     raise RuntimeError("Не найден выраженный узкополосный пик.")
 
-# Самый мощный пик
-best_peak = peaks[np.argmax(p2[peaks])]
-f0 = f2[best_peak]
+best_peak = peaks[np.argmax(amp_hf[peaks])]
+f0 = freqs_hf[best_peak]
 
 print(f"Detected interference frequency: {f0:.2f} Hz")
 
 # =========================
-# Notch-фильтр
+# Вырезка и линейная аппроксимация в спектре
 # =========================
-def apply_notch(sig, fs, f0, q=60.0):
-    w0 = f0 / (fs / 2)
-    b, a = iirnotch(w0, q)
-    return filtfilt(b, a, sig)
+k0 = np.argmin(np.abs(freqs - f0))
 
-# Узкий фильтр вокруг 15 кГц
-y = apply_notch(x, fs, f0, q=80.0)
+# Полуширина вырезаемого участка
+half_width_bins = 100
 
-# При необходимости можно подавить ещё и соседние частоты,
-# если линия немного "расплывается":
-# y = apply_notch(y, fs, f0 - 20, q=80.0)
-# y = apply_notch(y, fs, f0 + 20, q=80.0)
+k_left = max(1, k0 - half_width_bins)
+k_right = min(len(X) - 2, k0 + half_width_bins)
 
-# Нормировка
-max_abs = np.max(np.abs(y))
-if max_abs > 0:
-    y = 0.98 * y / max_abs
+left_val = X[k_left - 1]
+right_val = X[k_right + 1]
+
+# Линейная интерполяция комплексного спектра
+for k in range(k_left, k_right + 1):
+    alpha = (k - k_left + 1) / (k_right - k_left + 2)
+    X[k] = (1 - alpha) * left_val + alpha * right_val
+
+# Обратное преобразование Фурье
+y = np.fft.irfft(X, n=len(x))
 
 # =========================
 # Сохранение результата
@@ -122,20 +101,25 @@ wavfile.write("tune_filtered.wav", fs, y_int16)
 
 print("Saved: tune_filtered.wav")
 
+
 # =========================
-# Визуализация до/после
+# Визуализация спектра до/после
 # =========================
-def plot_psd(sig, fs, title):
-    f, pxx = signal.welch(sig, fs=fs, window="hann", nperseg=8192, noverlap=4096)
+def plot_spectrum(sig, fs, title):
+    X = np.fft.rfft(sig)
+    freqs = np.fft.rfftfreq(len(sig), d=1 / fs)
+    amp = np.abs(X)
+
     plt.figure(figsize=(14, 4))
-    plt.plot(f, 10 * np.log10(pxx + 1e-18))
+    plt.plot(freqs, 20 * np.log10(amp + 1e-12))
     plt.title(title)
     plt.xlabel("Frequency, Hz")
-    plt.ylabel("Power, dB")
+    plt.ylabel("Magnitude, dB")
     plt.grid(True)
     plt.xlim(0, fs / 2)
     plt.tight_layout()
     plt.show()
 
-plot_psd(x, fs, "PSD before filtering")
-plot_psd(y, fs, "PSD after filtering")
+
+plot_spectrum(x, fs, "Spectrum before filtering")
+plot_spectrum(y, fs, "Spectrum after filtering")
