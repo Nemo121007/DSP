@@ -31,9 +31,9 @@ t = np.arange(n_show) / fs
 
 plt.figure(figsize=(14, 4))
 plt.plot(t, x[:n_show])
-plt.title("Waveform: first 0.1 s")
-plt.xlabel("Time, s")
-plt.ylabel("Amplitude")
+plt.title("Сигнал: первые 0.1 s")
+plt.xlabel("Время, s")
+plt.ylabel("Амплитуда")
 plt.grid(True)
 plt.tight_layout()
 plt.show()
@@ -43,9 +43,9 @@ plt.show()
 # =========================
 plt.figure(figsize=(14, 5))
 plt.specgram(x, NFFT=2048, Fs=fs, noverlap=1536)
-plt.title("Spectrogram")
-plt.xlabel("Time, s")
-plt.ylabel("Frequency, Hz")
+plt.title("Спектрограмма")
+plt.xlabel("Время, s")
+plt.ylabel("Частота, Hz")
 plt.colorbar(label="dB")
 plt.tight_layout()
 plt.show()
@@ -69,7 +69,7 @@ if len(peaks) == 0:
 best_peak = peaks[np.argmax(amp_hf[peaks])]
 f0 = freqs_hf[best_peak]
 
-print(f"Detected interference frequency: {f0:.2f} Hz")
+print(f"Обнаружена аномальная частота: {f0:.2f} Hz")
 
 # =========================
 # Вырезка и линейная аппроксимация в спектре
@@ -99,13 +99,20 @@ y = np.fft.irfft(X, n=len(x))
 y_int16 = np.int16(np.clip(y, -1, 1) * 32767)
 wavfile.write("tune_filtered.wav", fs, y_int16)
 
-print("Saved: tune_filtered.wav")
+print("Сохранено: tune_filtered.wav")
 
 
 # =========================
 # Визуализация спектра до/после
 # =========================
 def plot_spectrum(sig, fs, title):
+    """Строит амплитудный спектр сигнала в децибелах.
+
+    Args:
+        sig (np.ndarray): Входной сигнал.
+        fs (int или float): Частота дискретизации.
+        title (str): Заголовок графика.
+    """
     X = np.fft.rfft(sig)
     freqs = np.fft.rfftfreq(len(sig), d=1 / fs)
     amp = np.abs(X)
@@ -113,13 +120,13 @@ def plot_spectrum(sig, fs, title):
     plt.figure(figsize=(14, 4))
     plt.plot(freqs, 20 * np.log10(amp + 1e-12))
     plt.title(title)
-    plt.xlabel("Frequency, Hz")
-    plt.ylabel("Magnitude, dB")
+    plt.xlabel("Частота, Hz")
+    plt.ylabel("Амплитуда, dB")
     plt.grid(True)
     plt.xlim(0, fs / 2)
     plt.tight_layout()
     plt.show()
 
 
-plot_spectrum(x, fs, "Spectrum before filtering")
-plot_spectrum(y, fs, "Spectrum after filtering")
+plot_spectrum(x, fs, "Спектр до фильтрации")
+plot_spectrum(y, fs, "Спектр после фильтрации")

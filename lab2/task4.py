@@ -3,94 +3,143 @@ import matplotlib.pyplot as plt
 from scipy import signal
 
 
-def load_ecg(path: str, fs: float | None = None):
+def load_ecg(path: str):
+    """Загружает данные ЭКГ из текстового файла.
+
+    Ожидается, что файл содержит минимум два столбца: время и значение сигнала.
+
+    Args:
+        path (str): Путь к файлу с данными.
+
+    Returns:
+        tuple: Кортеж, содержащий:
+            - np.ndarray: Массив значений времени (t).
+            - np.ndarray: Массив значений ЭКГ сигнала (x).
+            - float: Оцененную частоту дискретизации (fs).
+
+    Raises:
+        ValueError: Если в файле менее двух столбцов данных.
+    """
     data = np.loadtxt(path)
 
-    # Один столбец: только сигнал
-    if data.ndim == 1:
-        x = data.astype(float)
-        if fs is None:
-            raise ValueError("Для одноколоночного файла нужно явно задать fs.")
-        t = np.arange(len(x)) / fs
-        return t, x, fs
+    if data.ndim != 2 or data.shape[1] < 2:
+        raise ValueError("Файл должен содержать минимум два столбца: время и сигнал.")
 
-    # Два и более столбца
-    if data.shape[1] >= 2:
-        c0 = data[:, 0].astype(float)
-        c1 = data[:, 1].astype(float)
+    t = data[:, 0].astype(float)
+    x = data[:, 1].astype(float)
 
-        # Если первый столбец монотонно растет, считаем его временем
-        if np.all(np.diff(c0) > 0):
-            t = c0
-            if fs is None:
-                dt = np.median(np.diff(t))
-                fs = 1.0 / dt
-            return t, c1, fs
+    dt = np.median(np.diff(t))
+    fs = 1.0 / dt
 
-        # Иначе считаем, что первый столбец — сам сигнал
-        x = c0
-        if fs is None:
-            raise ValueError("Файл не содержит временную ось. Нужно задать fs.")
-        t = np.arange(len(x)) / fs
-        return t, x, fs
-
-    raise ValueError("Не удалось интерпретировать формат файла.")
+    return t, x, fs
 
 
 def estimate_narrow_interference_freq(x: np.ndarray, fs: float,
                                       fmin: float = 15.0,
                                       fmax: float | None = None):
-    """
-    Ищет узкий спектральный пик, который похож на помеху.
-    Используется Welch + вычитание сглаженного фона.
+    """Оценивает частоту узкополосной помехи в сигнале.
+
+    Ищет максимум амплитудного спектра в заданном диапазоне частот.
+
+    Args:
+        x (np.ndarray): Входной сигнал.
+        fs (float): Частота дискретизации.
+        fmin (float, optional): Минимальная частота поиска в Гц. По умолчанию 15.0.
+        fmax (float | None, optional): Максимальная частота поиска в Гц. Если None, 
+            ограничивается частотой Найквиста или 120 Гц.
+
+    Returns:
+        float: Оцененная частота помехи в Гц.
+
+    Raises:
+        RuntimeError: Если в заданном диапазоне нет данных.
     """
     x = x - np.mean(x)
     if fmax is None:
         fmax = min(120.0, fs / 2 - 1.0)
 
-    nperseg = min(len(x), 8192)
-    f, pxx = signal.welch(x, fs=fs, nperseg=nperseg, scaling="density")
+    n = len(x)
+    freqs = np.fft.rfftfreq(n, d=1 / fs)
+    amp = np.abs(np.fft.rfft(x))
 
-    mask = (f >= fmin) & (f <= fmax)
-    f = f[mask]
-    pxx = pxx[mask]
+    mask = (freqs >= fmin) & (freqs <= fmax)
+    freqs_sel = freqs[mask]
+    amp_sel = amp[mask]
 
-    logp = np.log10(pxx + 1e-18)
+    if len(amp_sel) == 0:
+        raise RuntimeError("В заданном диапазоне частот нет данных для поиска помехи.")
 
-    # Сглаженный "фон" спектра
-    k = 31 if len(logp) >= 31 else max(3, (len(logp) // 2) * 2 + 1)
-    baseline = signal.medfilt(logp, kernel_size=k)
-
-    # Остаток — кандидаты на узкие линии
-    sharp = logp - baseline
-    peaks, props = signal.find_peaks(sharp, prominence=np.percentile(sharp, 90) * 0.15)
-
-    if len(peaks) == 0:
-        return float(f[np.argmax(pxx)])
-
-    best = peaks[np.argmax(props["prominences"])]
-    return float(f[best])
+    k = np.argmax(amp_sel)
+    return float(freqs_sel[k])
 
 
-def notch_harmonics(x: np.ndarray, fs: float, f0: float,
-                    q: float = 50.0, max_harmonics: int = 5):
+def cut_band_linear_interpolate(X: np.ndarray, k0: int, half_width_bins: int = 100):
+    """Вырезает полосу из спектра участка с заменой на линейную интерполяцию.
+
+    Args:
+        X (np.ndarray): Комплексный спектр сигнала.
+        k0 (int): Индекс центра вырезаемой полосы.
+        half_width_bins (int, optional): Полуширина вырезаемой полосы в бинах. По умолчанию 100.
+
+    Returns:
+        np.ndarray: Модифицированный спектр.
     """
-    Последовательно подавляет f0, 2f0, 3f0, ...
-    Q больше -> уже полоса подавления.
+    X = X.copy()
+
+    k_left = max(1, k0 - half_width_bins)
+    k_right = min(len(X) - 2, k0 + half_width_bins)
+
+    left_val = X[k_left - 1]
+    right_val = X[k_right + 1]
+
+    # Линейная интерполяция комплексного спектра
+    for k in range(k_left, k_right + 1):
+        alpha = (k - k_left + 1) / (k_right - k_left + 2)
+        X[k] = (1 - alpha) * left_val + alpha * right_val
+
+    return X
+
+
+def remove_interference(x: np.ndarray, fs: float, f0: float,
+                        half_width_hz: float = 1.0):
+    """Удаляет узкополосную помеху из сигнала.
+
+    Args:
+        x (np.ndarray): Входной зашумленный сигнал.
+        fs (float): Частота дискретизации.
+        f0 (float): Частота удаляемой помехи в Гц.
+        half_width_hz (float, optional): Полуширина вырезаемой полосы в Гц. По умолчанию 1.0.
+
+    Returns:
+        np.ndarray: Очищенный от помехи сигнал во временной области.
     """
-    y = x.astype(float).copy()
-    for k in range(1, max_harmonics + 1):
-        fk = f0 * k
-        if fk >= fs / 2 - 1:
-            break
-        b, a = signal.iirnotch(fk, Q=q, fs=fs)
-        y = signal.filtfilt(b, a, y)
+    x = x - np.mean(x)
+    n = len(x)
+
+    X = np.fft.rfft(x)
+    freqs = np.fft.rfftfreq(n, d=1 / fs)
+
+    df = fs / n
+    half_width_bins = max(1, int(round(half_width_hz / df)))
+
+    k0 = int(np.argmin(np.abs(freqs - f0)))
+    X = cut_band_linear_interpolate(X, k0, half_width_bins=half_width_bins)
+
+    y = np.fft.irfft(X, n=n)
     return y
 
 
 def spectrum_db(x: np.ndarray, fs: float):
-    """
-    Односторонний спектр в дБ, чтобы тонкая линия была видна лучше.
+    """Вычисляет амплитудный спектр сигнала в децибелах (дБ).
+
+    Args:
+        x (np.ndarray): Входной сигнал.
+        fs (float): Частота дискретизации.
+
+    Returns:
+        tuple: Кортеж, содержащий:
+            - np.ndarray: Массив частот (Гц).
+            - np.ndarray: Значения амплитудного спектра в дБ.
     """
     x = x - np.mean(x)
     n = len(x)
@@ -101,6 +150,16 @@ def spectrum_db(x: np.ndarray, fs: float):
 
 
 def plot_all(t, x_noisy, x_clean, fs, seconds_to_show=10.0):
+    """Строит графики зашумленного и очищенного сигналов, а также их спектров.
+
+    Args:
+        t (np.ndarray): Массив значений времени.
+        x_noisy (np.ndarray): Зашумленный сигнал.
+        x_clean (np.ndarray): Очищенный сигнал.
+        fs (float): Частота дискретизации.
+        seconds_to_show (float, optional): Длительность отображаемого участка 
+            во временной области (в секундах). По умолчанию 10.0.
+    """
     n_show = min(len(x_noisy), int(seconds_to_show * fs))
     tt = t[:n_show]
 
@@ -142,19 +201,17 @@ def plot_all(t, x_noisy, x_clean, fs, seconds_to_show=10.0):
 # ----------------- основной запуск -----------------
 path = "data/ecg.dat"
 
-# Если в файле только один столбец, задайте частоту дискретизации вручную.
-# Подберите под ваш файл, если знаете точное значение.
-fs_manual = 500.0
-
-t, x, fs = load_ecg(path, fs=fs_manual)
+t, x, fs = load_ecg(path)
 x = x - np.mean(x)
 
-# Автоматически находим узкую помеху
 f0 = estimate_narrow_interference_freq(x, fs)
 print(f"Оцененная частота помехи: {f0:.2f} Гц")
 
-# Фильтрация
-x_clean = notch_harmonics(x, fs, f0=f0, q=60.0, max_harmonics=5)
+x_clean = remove_interference(
+    x,
+    fs,
+    f0=f0,
+    half_width_hz=0.5,
+)
 
-# Сравнение
 plot_all(t, x, x_clean, fs, seconds_to_show=10.0)

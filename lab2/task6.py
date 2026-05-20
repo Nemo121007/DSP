@@ -3,36 +3,62 @@ from scipy.io import wavfile
 
 
 def wrap_phase(phi: np.ndarray) -> np.ndarray:
-    """
-    Приводит фазу к интервалу [-pi, pi).
+    """Оборачивает фазу в диапазон [-pi, pi].
+
+    Args:
+        phi (np.ndarray): Массив фаз.
+
+    Returns:
+        np.ndarray: Приведенные к интервалу [-pi, pi] фазы.
     """
     return (phi + np.pi) % (2.0 * np.pi) - np.pi
 
 
 def bits_to_phases(bits: np.ndarray) -> np.ndarray:
-    """
+    """Преобразует биты в соответствующие начальные фазы.
+    
     0 -> +pi/2
     1 -> -pi/2
+    
+    Args:
+        bits (np.ndarray): Массив битов.
+
+    Returns:
+        np.ndarray: Массив соответствующих фаз.
     """
     bits = np.asarray(bits, dtype=np.uint8)
     return np.where(bits == 0, np.pi / 2.0, -np.pi / 2.0)
 
 
 def phases_to_bits(phases: np.ndarray) -> np.ndarray:
-    """
-    Обратное преобразование фаз в биты.
+    """Восстанавливает биты из значений фаз.
+
+    Отрицательные фазы интерпретируются как 1, неотрицательные как 0.
+
+    Args:
+        phases (np.ndarray): Массив фаз.
+
+    Returns:
+        np.ndarray: Восстановленный массив битов.
     """
     phases = np.asarray(phases)
     return (phases < 0.0).astype(np.uint8)
 
 
 def normalize_audio_to_float(audio: np.ndarray):
-    """
-    Переводит PCM/float аудио в float64.
-    Возвращает:
-        audio_f   - float64 массив
-        orig_dtype - исходный dtype
-        scale     - коэффициент масштаба для обратного преобразования
+    """Нормализует аудиоданные в вещественный формат в диапазоне [-1.0, 1.0].
+
+    Args:
+        audio (np.ndarray): Исходный массив аудио.
+
+    Returns:
+        tuple: Кортеж, содержащий:
+            - np.ndarray: Нормализованный массив типа float64.
+            - np.dtype: Исходный тип данных.
+            - float: Коэффициент масштабирования.
+
+    Raises:
+        TypeError: При неподдерживаемом типе данных.
     """
     orig_dtype = audio.dtype
 
@@ -49,9 +75,15 @@ def normalize_audio_to_float(audio: np.ndarray):
     return audio_f, orig_dtype, scale
 
 
-def denormalize_audio_from_float(audio_f: np.ndarray, orig_dtype: np.dtype, scale: float) -> np.ndarray:
-    """
-    Возвращает аудио в исходный формат.
+def denormalize_audio_from_float(audio_f: np.ndarray, orig_dtype: np.dtype) -> np.ndarray:
+    """Возвращает нормализованное аудио к исходному типу данных.
+
+    Args:
+        audio_f (np.ndarray): Нормализованное аудио в формате float.
+        orig_dtype (np.dtype): Исходный тип данных для восстановления.
+
+    Returns:
+        np.ndarray: Денормализованное аудио в исходном формате.
     """
     audio_f = np.clip(audio_f, -1.0, 1.0)
 
@@ -63,8 +95,18 @@ def denormalize_audio_from_float(audio_f: np.ndarray, orig_dtype: np.dtype, scal
 
 
 def phase_coding_encode_channel(x: np.ndarray, bits: np.ndarray, n_segments: int) -> np.ndarray:
-    """
-    Фазовое кодирование для одного канала.
+    """Встраивает информацию в один канал аудио методом фазового кодирования.
+
+    Args:
+        x (np.ndarray): Одномерный массив аудиосигнала.
+        bits (np.ndarray): Массив битов для скрытия.
+        n_segments (int): На сколько сегментов делить сигнал.
+
+    Returns:
+        np.ndarray: Модифицированный аудиосигнал с внедренным сообщением.
+
+    Raises:
+        ValueError: При неверной размерности или слишком длинном сообщении.
     """
     x = np.asarray(x, dtype=np.float64)
     if x.ndim != 1:
@@ -122,8 +164,18 @@ def phase_coding_encode_channel(x: np.ndarray, bits: np.ndarray, n_segments: int
 
 
 def phase_coding_decode_channel(x_stego: np.ndarray, n_segments: int, message_len: int) -> np.ndarray:
-    """
-    Извлечение сообщения из одного канала.
+    """Извлечение сообщения из одного канала (фазовое декодирование).
+
+    Args:
+        x_stego (np.ndarray): Аудиосигнал со скрытым сообщением.
+        n_segments (int): Изначальное число сегментов.
+        message_len (int): Длина извлекаемого сообщения в битах.
+
+    Returns:
+        np.ndarray: Извлеченный массив битов.
+
+    Raises:
+        ValueError: При запрошенной длине, превышающей допустимый максимум.
     """
     x_stego = np.asarray(x_stego, dtype=np.float64)
     if x_stego.ndim != 1:
@@ -162,8 +214,18 @@ def phase_coding_decode_channel(x_stego: np.ndarray, n_segments: int, message_le
 
 
 def phase_coding_encode(audio: np.ndarray, bits, n_segments: int) -> np.ndarray:
-    """
-    Кодирование mono/stereo аудио.
+    """Встраивает информацию в аудиосигнал (mono или multi-channel).
+
+    Args:
+        audio (np.ndarray): Массив аудиоданных (float).
+        bits (iterable): Биты для встраивания.
+        n_segments (int): Число сегментов разбиения.
+
+    Returns:
+        np.ndarray: Аудиомассив со встроенным сообщением.
+
+    Raises:
+        ValueError: Если аудиофайл не содержит 1 или несколько каналов (неверная размерность).
     """
     bits = np.asarray(list(bits), dtype=np.uint8)
 
@@ -180,8 +242,20 @@ def phase_coding_encode(audio: np.ndarray, bits, n_segments: int) -> np.ndarray:
 
 
 def phase_coding_decode(audio_stego: np.ndarray, n_segments: int, message_len: int) -> np.ndarray:
-    """
-    Декодирование mono/stereo аудио.
+    """Извлекает битовую последовательность из скрытого аудио (mono или multi-channel).
+
+    Для стерео или многоканального аудио извлекает сообщение из первого канала.
+
+    Args:
+        audio_stego (np.ndarray): Аудио со встроенной информацией.
+        n_segments (int): Количество сегментов.
+        message_len (int): Длина сообщения.
+
+    Returns:
+        np.ndarray: Извлеченные биты.
+
+    Raises:
+        ValueError: При некорректной размерности массива аудио.
     """
     if audio_stego.ndim == 1:
         return phase_coding_decode_channel(audio_stego, n_segments, message_len)
@@ -193,16 +267,30 @@ def phase_coding_decode(audio_stego: np.ndarray, n_segments: int, message_len: i
 
 
 def write_wav(path: str, fs: int, audio_f: np.ndarray, orig_dtype: np.dtype, scale: float) -> None:
+    """Сохраняет вещественный массив аудио в WAV файл с преобразованием к исходному формату.
+
+    Args:
+        path (str): Путь сохранения файла.
+        fs (int): Частота дискретизации.
+        audio_f (np.ndarray): Нормализованные аудиоданные.
+        orig_dtype (np.dtype): Исходный тип данных (для денормализации).
+        scale (float): Использованный масштаб (не используется напрямую, но для совместимости).
     """
-    Запись WAV-файла.
-    """
-    audio_out = denormalize_audio_from_float(audio_f, orig_dtype, scale)
+    audio_out = denormalize_audio_from_float(audio_f, orig_dtype)
     wavfile.write(path, fs, audio_out)
 
 
 def parse_bits(bit_string: str) -> np.ndarray:
-    """
-    Преобразует строку вида '1011001' в массив бит.
+    """Преобразует строковое представление битов в массив np.uint8.
+
+    Args:
+        bit_string (str): Строка из '0' и '1'.
+
+    Returns:
+        np.ndarray: Массив типа np.uint8.
+
+    Raises:
+        ValueError: Если строка содержит недопустимые символы.
     """
     bit_string = bit_string.strip()
     if not bit_string:

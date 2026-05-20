@@ -18,10 +18,28 @@ nfft = 2 ** 15
 # Сигналы
 # -----------------------------
 def x1(t):
+    """Вычисляет значение сигнала x1(t) = exp(-t^2).
+
+    Args:
+        t (float или np.ndarray): Момент(ы) времени.
+
+    Returns:
+        float или np.ndarray: Значение сигнала в заданные моменты времени.
+    """
     return np.exp(-t**2)
 
 
 def x2(t):
+    """Вычисляет значение сигнала x2(t).
+
+    Сигнал равен cos(pi * t / 2) при |t| <= 1.0 и 0 иначе.
+
+    Args:
+        t (float или np.ndarray): Момент(ы) времени.
+
+    Returns:
+        float или np.ndarray: Значение сигнала в заданные моменты времени.
+    """
     return np.where(np.abs(t) <= 1.0, np.cos(np.pi * t / 2.0), 0.0)
 
 
@@ -29,9 +47,19 @@ def x2(t):
 # Численное CTFT через FFT
 # -----------------------------
 def ctft_via_fft(x, dt, nfft):
-    """
-    Приближение CTFT:
-        X(ω) = ∫ x(t)e^{-iωt}dt через FFT на равномерной сетке.
+    """Приближенное вычисление непрерывного преобразования Фурье (CTFT) через FFT.
+
+    Формула: X(ω) = ∫ x(t)e^{-iωt}dt через FFT на равномерной сетке.
+
+    Args:
+        x (np.ndarray): Значения сигнала во временной области.
+        dt (float): Шаг дискретизации во времени.
+        nfft (int): Количество точек для FFT.
+
+    Returns:
+        tuple: Кортеж, содержащий:
+            - np.ndarray: Массив частот (omega).
+            - np.ndarray: Комплексные значения спектра X(ω).
     """
     X = dt * np.fft.fftshift(np.fft.fft(x, n=nfft))
     omega = 2.0 * np.pi * np.fft.fftshift(np.fft.fftfreq(nfft, d=dt))
@@ -42,11 +70,27 @@ def ctft_via_fft(x, dt, nfft):
 # Теоретические спектры
 # -----------------------------
 def X1_theory(omega):
+    """Расчет теоретического спектра для сигнала x1(t).
+
+    Args:
+        omega (float или np.ndarray): Круговая частота (или массив частот).
+
+    Returns:
+        float или np.ndarray: Значения спектра.
+    """
     # ∫ exp(-t^2) e^{-iωt} dt = sqrt(pi) * exp(-ω^2/4)
     return np.sqrt(np.pi) * np.exp(-omega**2 / 4.0)
 
 
 def X2_theory(omega):
+    """Расчет теоретического спектра для сигнала x2(t).
+
+    Args:
+        omega (float или np.ndarray): Круговая частота (или массив частот).
+
+    Returns:
+        float или np.ndarray: Значения спектра.
+    """
     # X2(ω) = ∫_{-1}^{1} cos(pi t/2) e^{-iωt} dt
     #       = sinc((ω - π/2)/π) + sinc((ω + π/2)/π)
     a = np.pi / 2.0
@@ -73,8 +117,8 @@ m2 = np.abs(omega2) <= wmax
 err1 = np.max(np.abs(np.abs(X1_num[m1]) - X1_th[m1]))
 err2 = np.max(np.abs(np.abs(X2_num[m2]) - np.abs(X2_th[m2])))
 
-print(f"Max abs error for x1(t) = exp(-t^2): {err1:.6e}")
-print(f"Max abs error for x2(t): {err2:.6e}")
+print(f"Max abs error x1(t) = exp(-t^2): {err1:.6e}")
+print(f"Max abs error x2(t): {err2:.6e}")
 
 
 # -----------------------------

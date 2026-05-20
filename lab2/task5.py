@@ -4,12 +4,19 @@ import matplotlib.pyplot as plt
 
 
 def inverse_quarter_permutation_spectrum(x: np.ndarray) -> np.ndarray:
-    """
-    Восстанавливает сигнал после перестановки спектральных четвертей:
-    [A B C D] -> [C B D A]
+    """Восстанавливает сигнал после перестановки спектральных четвертей.
 
-    Для восстановления делаем обратную перестановку:
+    Для восстановления делает обратную перестановку:
     [C B D A] -> [A B C D] = [q4, q2, q1, q3]
+
+    Args:
+        x (np.ndarray): Искаженный сигнал во временной области.
+
+    Returns:
+        np.ndarray: Восстановленный сигнал во временной области.
+        
+    Raises:
+        ValueError: Если длина сигнала не кратна 4.
     """
     n = len(x)
 
@@ -40,6 +47,21 @@ def inverse_quarter_permutation_spectrum(x: np.ndarray) -> np.ndarray:
 
 
 def save_wav_like_original(path_in: str, path_out: str):
+    """Считывает WAV файл, восстанавливает его спектр и сохраняет в новый файл.
+
+    Поддерживает обработку как mono, так и stereo файлов. Сохраняет 
+    исходный тип данных аудио.
+
+    Args:
+        path_in (str): Путь к исходному (искаженному) WAV файлу.
+        path_out (str): Путь для сохранения восстановленного WAV файла.
+
+    Returns:
+        tuple: Кортеж, содержащий:
+            - int: Частоту дискретизации.
+            - np.ndarray: Исходные данные.
+            - np.ndarray: Восстановленные данные.
+    """
     fs, data = wavfile.read(path_in)
 
     # Обрабатываем и mono, и stereo
