@@ -59,12 +59,9 @@ def estimate_delays(transmitters: np.ndarray, received: np.ndarray) -> np.ndarra
     return delays
 
 
-# =========================
-# Multilateration
-# =========================
 def residuals(p: np.ndarray, speakers: np.ndarray, distances: np.ndarray) -> np.ndarray:
     """
-    Вектор невязок для задачи multilateration.
+    Вектор невязок.
 
     p: (3,) -> [x, y, z]
     speakers: (4, 3)

@@ -95,6 +95,47 @@ def save_wav_like_original(path_in: str, path_out: str):
     return fs, data, xr
 
 
+def plot_spectra(original_data, restored_data, fs):
+    """Визуализирует амплитудный спектр до и после восстановления."""
+    if original_data.ndim > 1:
+        # Для стерео берем только первый канал для визуализации
+        orig_channel = original_data[:, 0]
+        rest_channel = restored_data[:, 0]
+    else:
+        orig_channel = original_data
+        rest_channel = restored_data
+
+    N = len(orig_channel)
+    
+    # Вычисляем спектры
+    X_orig = np.fft.fft(orig_channel)
+    X_rest = np.fft.fft(rest_channel)
+    
+    # Вычисляем частоты и делаем сдвиг для отображения [-fs/2, fs/2]
+    freqs = np.fft.fftshift(np.fft.fftfreq(N, 1/fs))
+    mag_orig = np.abs(np.fft.fftshift(X_orig))
+    mag_rest = np.abs(np.fft.fftshift(X_rest))
+    
+    plt.figure(figsize=(12, 8))
+    
+    plt.subplot(2, 1, 1)
+    plt.plot(freqs, mag_orig, color='red')
+    plt.title('Спектр амплитуд ДО восстановления')
+    plt.xlabel('Частота (Гц)')
+    plt.ylabel('Амплитуда')
+    plt.grid(True)
+    
+    plt.subplot(2, 1, 2)
+    plt.plot(freqs, mag_rest, color='green')
+    plt.title('Спектр амплитуд ПОСЛЕ восстановления')
+    plt.xlabel('Частота (Гц)')
+    plt.ylabel('Амплитуда')
+    plt.grid(True)
+    
+    plt.tight_layout()
+    plt.show()
+
+
 # ---- запуск ----
 input_file = "data/test5.wav"
 output_file = "test5_restored.wav"
@@ -104,3 +145,6 @@ fs, original_data, restored_data = save_wav_like_original(input_file, output_fil
 print(f"Готово. Восстановленный файл сохранён как: {output_file}")
 print(f"Частота дискретизации: {fs} Гц")
 print(f"Длина сигнала: {len(original_data)} отсчётов")
+
+# Визуализация результатов
+plot_spectra(original_data, restored_data, fs)
