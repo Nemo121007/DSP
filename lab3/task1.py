@@ -80,7 +80,7 @@ def design_linear_phase_fir_ls(numtaps, fs, bands_2d, desired_2d, grid=30001, ba
 
     omega = 2.0 * np.pi * f / fs
 
-    # Матрица базисных функций из лекции:
+    # Матрица базисных функций:
     # A(ω) = h[M] + Σ_{n=0}^{M-1} 2 h[n] cos(ω(M-n))
     B = np.column_stack(
         [2.0 * np.cos(omega * (M - n)) for n in range(M)] + [np.ones_like(omega)]

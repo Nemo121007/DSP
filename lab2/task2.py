@@ -70,31 +70,45 @@ def ctft_via_fft(x, dt, nfft):
 # Теоретические спектры
 # -----------------------------
 def X1_theory(omega):
-    """Расчет теоретического спектра для сигнала x1(t).
-
-    Args:
-        omega (float или np.ndarray): Круговая частота (или массив частот).
-
-    Returns:
-        float или np.ndarray: Значения спектра.
     """
-    # ∫ exp(-t^2) e^{-iωt} dt = sqrt(pi) * exp(-ω^2/4)
-    return np.sqrt(np.pi) * np.exp(-omega**2 / 4.0)
+    Расчет теоретического спектра для сигнала:
+
+        x1(t) = exp(-t^2)
+
+    через определение преобразования Фурье:
+
+        X1(ω)=∫ exp(-t^2)e^{-iωt}dt
+    """
+
+    # Для гауссианы интегрируем на конечном интервале, т.к. exp(-t^2) быстро стремится к нулю
+    t = np.linspace(-10, 10, 5000)
+
+    x = np.exp(-t**2)
+
+    X = []
+
+    for w in np.atleast_1d(omega):
+        integrand = x * np.exp(-1j * w * t)
+
+        X.append(
+            np.trapezoid(integrand, t)
+        )
+
+    return np.array(X)
 
 
 def X2_theory(omega):
-    """Расчет теоретического спектра для сигнала x2(t).
+    t = np.linspace(-1, 1, 5000)
 
-    Args:
-        omega (float или np.ndarray): Круговая частота (или массив частот).
+    x = np.cos(np.pi*t/2)
 
-    Returns:
-        float или np.ndarray: Значения спектра.
-    """
-    # X2(ω) = ∫_{-1}^{1} cos(pi t/2) e^{-iωt} dt
-    #       = sinc((ω - π/2)/π) + sinc((ω + π/2)/π)
-    a = np.pi / 2.0
-    return np.sinc((omega - a) / np.pi) + np.sinc((omega + a) / np.pi)
+    X = []
+
+    for w in np.atleast_1d(omega):
+        integrand = x * np.exp(-1j*w*t)
+        X.append(np.trapezoid(integrand, t))
+
+    return np.array(X)
 
 
 # -----------------------------
@@ -126,7 +140,7 @@ print(f"Max abs error x2(t): {err2:.6e}")
 # -----------------------------
 plt.figure(figsize=(10, 4))
 plt.plot(omega1[m1], np.abs(X1_num[m1]), label=r'Численно: $|\mathrm{FFT}|\cdot \Delta t$')
-plt.plot(omega1[m1], X1_th[m1], '--', label='Теория')
+plt.plot(omega1[m1], np.abs(X1_th[m1]), '--', label='Теория')
 plt.title(r'Сигнал $x_1(t)=e^{-t^2}$')
 plt.xlabel(r'$\omega$')
 plt.ylabel(r'$|X(\omega)|$')

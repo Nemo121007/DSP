@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.io import wavfile
+import matplotlib.pyplot as plt
 
 
 def wrap_phase(phi: np.ndarray) -> np.ndarray:
@@ -301,22 +302,9 @@ def parse_bits(bit_string: str) -> np.ndarray:
 
 
 if __name__ == "__main__":
-    fs = 44100
-    duration_sec = 3.0
-    t = np.arange(int(fs * duration_sec)) / fs
+    fs, audio = wavfile.read("tune_filtered.wav")
 
-    # Синтетический аудиосигнал: сумма гармоник + небольшой шум.
-    audio = (
-        0.45 * np.sin(2 * np.pi * 440.0 * t)
-        + 0.25 * np.sin(2 * np.pi * 880.0 * t)
-        + 0.15 * np.sin(2 * np.pi * 1760.0 * t)
-        + 0.03 * np.random.default_rng(42).normal(size=t.shape[0])
-    )
-
-    # Ограничим амплитуду, чтобы не было клиппинга.
-    audio = np.clip(audio, -1.0, 1.0)
-
-    audio_f, orig_dtype, scale = normalize_audio_to_float(audio.astype(np.float32))
+    audio_f, orig_dtype, scale = normalize_audio_to_float(audio)
 
     message = "1011001110001011"
     bits = parse_bits(message)
@@ -333,7 +321,43 @@ if __name__ == "__main__":
     print("Совпадение          :", message == recovered_message)
 
     # Сохранение файлов для проверки.
-    write_wav("synthetic_original.wav", fs, audio_f, orig_dtype, scale)
-    write_wav("synthetic_stego.wav", fs, stego, orig_dtype, scale)
+    write_wav("tune_filtered_original.wav", fs, audio_f, orig_dtype, scale)
+    write_wav("tune_filtered_stego.wav", fs, stego, orig_dtype, scale)
 
-    print("Файлы сохранены: synthetic_original.wav, synthetic_stego.wav")
+    print("Файлы сохранены: tune_filtered_original.wav, tune_filtered_stego.wav")
+
+    # Построение графиков для визуализации стеганографии
+    plt.figure(figsize=(12, 8))
+
+    # 1. Сравнение формы сигнала (увеличенный фрагмент)
+    plt.subplot(2, 1, 1)
+    samples_to_plot = 1000
+    plt.plot(audio_f[:samples_to_plot], label="Оригинал", alpha=0.7)
+    plt.plot(stego[:samples_to_plot], label="Стего", alpha=0.7, linestyle='--')
+    plt.title("Сравнение формы сигнала (первые 1000 сэмплов)")
+    plt.xlabel("Сэмплы")
+    plt.ylabel("Амплитуда")
+    plt.legend()
+
+    # 2. Сравнение фаз в первом сегменте (где спрятаны биты)
+    n_samples = len(audio_f)
+    segment_len = int(np.ceil(n_samples / n_segments))
+    
+    orig_segment0 = audio_f[:segment_len]
+    stego_segment0 = stego[:segment_len]
+    
+    orig_phase0 = np.angle(np.fft.rfft(orig_segment0))
+    stego_phase0 = np.angle(np.fft.rfft(stego_segment0))
+    
+    plt.subplot(2, 1, 2)
+    x_bins = np.arange(1, len(bits) + 1)
+    plt.plot(x_bins, orig_phase0[1:len(bits)+1], 'o-', label="Исходная фаза")
+    plt.plot(x_bins, stego_phase0[1:len(bits)+1], 's-', label="Фаза стего (сообщение)")
+    plt.title(f"Сравнение фазы для {len(bits)} частотных бинов")
+    plt.xlabel("Индекс частотного бина")
+    plt.ylabel("Фаза (радианы)")
+    plt.legend()
+    plt.xticks(x_bins)
+
+    plt.tight_layout()
+    plt.show()    
