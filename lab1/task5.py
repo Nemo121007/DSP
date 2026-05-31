@@ -8,8 +8,8 @@ from scipy.signal import correlate, correlation_lags
 # Constants
 # =========================
 
-FS = 100000.0   # Hz
-C = 1125.0      # ft/s
+FS = 100000.0  # Hz
+C = 1125.0  # ft/s
 
 
 # =========================

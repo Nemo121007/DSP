@@ -17,17 +17,16 @@ x(t) = sin(ω0 t).
   чуть более широкий набор отсчётов, чем интервал визуализации.
 """
 
-import numpy as np
 import matplotlib.pyplot as plt
-
+import numpy as np
 
 # ============================================================
 # Параметры исходного непрерывного сигнала
 # ============================================================
 
-A = 1.0              # амплитуда синуса
-f0 = 5.0             # частота синуса в Гц
-omega0 = 2 * np.pi * f0   # круговая частота ω0 в рад/с
+A = 1.0  # амплитуда синуса
+f0 = 5.0  # частота синуса в Гц
+omega0 = 2 * np.pi * f0  # круговая частота ω0 в рад/с
 
 # Сигнал: x(t) = A * sin(ω0 t)
 
@@ -38,8 +37,8 @@ omega0 = 2 * np.pi * f0   # круговая частота ω0 в рад/с
 
 # Выбираем частоту дискретизации, удовлетворяющую теореме Котельникова:
 # fs > 2 * f0
-fs = 50.0            # частота дискретизации в Гц
-T = 1.0 / fs         # шаг дискретизации
+fs = 50.0  # частота дискретизации в Гц
+T = 1.0 / fs  # шаг дискретизации
 
 nyquist_freq = fs / 2.0
 
@@ -83,10 +82,9 @@ t_dense = np.linspace(t_plot_min, t_plot_max, 4000)
 x_true = A * np.sin(omega0 * t_dense)
 
 
-def sinc_reconstruct(t_eval: np.ndarray,
-                     t_s: np.ndarray,
-                     x_s: np.ndarray,
-                     T: float) -> np.ndarray:
+def sinc_reconstruct(
+    t_eval: np.ndarray, t_s: np.ndarray, x_s: np.ndarray, T: float
+) -> np.ndarray:
     """Восстановление непрерывного сигнала по дискретным отсчётам методом sinc-интерполяции.
 
     Формула:
@@ -137,7 +135,9 @@ plt.figure(figsize=(12, 6))
 plt.plot(t_dense, x_true, label="Исходный сигнал x(t)", linewidth=2)
 
 # Восстановленный сигнал
-plt.plot(t_dense, x_reconstructed, "--", label="Восстановленный по отсчётам", linewidth=2)
+plt.plot(
+    t_dense, x_reconstructed, "--", label="Восстановленный по отсчётам", linewidth=2
+)
 
 # Отсчёты показываем отдельными точками.
 # Чтобы не перегружать график, выведем только те отсчёты, которые попадают
@@ -148,7 +148,7 @@ plt.scatter(
     x_samples[mask_visible],
     s=25,
     label="Дискретные отсчёты",
-    zorder=3
+    zorder=3,
 )
 
 plt.title("Проверка теоремы Котельникова на сигнале x(t) = sin(ω0 t)")

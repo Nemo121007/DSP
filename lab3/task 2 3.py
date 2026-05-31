@@ -1,5 +1,5 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from scipy import signal
 from scipy.io import wavfile
 
@@ -63,13 +63,12 @@ mask = freqs > 1000
 freqs_hf = freqs[mask]
 amp_hf = amp[mask]
 
-peaks, props = signal.find_peaks(
-    amp_hf,
-    prominence=np.max(amp_hf) * 0.05
-)
+peaks, props = signal.find_peaks(amp_hf, prominence=np.max(amp_hf) * 0.05)
 
 if len(peaks) == 0:
-    raise RuntimeError("Не найден выраженный узкополосный пик. Попробуйте другой критерий поиска.")
+    raise RuntimeError(
+        "Не найден выраженный узкополосный пик. Попробуйте другой критерий поиска."
+    )
 
 best_peak = peaks[np.argmax(amp_hf[peaks])]
 f0 = freqs_hf[best_peak]
@@ -81,8 +80,7 @@ print(f"Обнаруженная аномальная частота: {f0:.2f} H
 # =========================
 # Ширина режекторной зоны вокруг f0.
 # Для узкополосной тональной помехи обычно достаточно узкой полосы.
-# При необходимости увеличьте bw_hz.
-bw_hz = 100.0
+bw_hz = 75.0
 
 f1 = max(0.0, f0 - bw_hz)
 f2 = min(fs / 2 - 1.0, f0 + bw_hz)
@@ -94,11 +92,7 @@ numtaps = 1001
 # Линейно-фазовый КИХ band-stop.
 # firwin с bandstop строит симметричный FIR.
 h = signal.firwin(
-    numtaps=numtaps,
-    cutoff=[f1, f2],
-    fs=fs,
-    pass_zero="bandstop",
-    window="hamming"
+    numtaps=numtaps, cutoff=[f1, f2], fs=fs, pass_zero="bandstop", window="hamming"
 )
 
 # Проверка симметрии

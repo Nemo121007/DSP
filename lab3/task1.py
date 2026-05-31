@@ -1,7 +1,6 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from scipy import signal
-
 
 FS = 8000.0
 NUMTAPS = 401  # нечётное число => тип I, линейная ФЧХ
@@ -18,25 +17,31 @@ NUMTAPS = 401  # нечётное число => тип I, линейная ФЧ�
 # 750..900  -> 0
 # 900..1500 -> 0.5
 # 1500..4000-> 0
-BANDS_2D = np.array([
-    [0, 50],
-    [50, 150],
-    [150, 350],
-    [350, 750],
-    [750, 900],
-    [900, 1500],
-    [1500, FS / 2],
-], dtype=float)
+BANDS_2D = np.array(
+    [
+        [0, 50],
+        [50, 150],
+        [150, 350],
+        [350, 750],
+        [750, 900],
+        [900, 1500],
+        [1500, FS / 2],
+    ],
+    dtype=float,
+)
 
-DESIRED_2D = np.array([
-    [0, 0],
-    [2, 2],
-    [0, 0],
-    [1, 1],
-    [0, 0],
-    [0.5, 0.5],
-    [0, 0],
-], dtype=float)
+DESIRED_2D = np.array(
+    [
+        [0, 0],
+        [2, 2],
+        [0, 0],
+        [1, 1],
+        [0, 0],
+        [0.5, 0.5],
+        [0, 0],
+    ],
+    dtype=float,
+)
 
 # Вес можно оставить единичным для чистого LS-сравнения
 WEIGHTS = np.ones(len(BANDS_2D), dtype=float)
@@ -45,7 +50,9 @@ WEIGHTS = np.ones(len(BANDS_2D), dtype=float)
 # ------------------------------------------------------------
 # Собственная реализация МНК для симметричного КИХ типа I
 # ------------------------------------------------------------
-def design_linear_phase_fir_ls(numtaps, fs, bands_2d, desired_2d, grid=30001, band_weights=None):
+def design_linear_phase_fir_ls(
+    numtaps, fs, bands_2d, desired_2d, grid=30001, band_weights=None
+):
     """
     МНК-проектирование КИХ-фильтра типа I с линейной ФЧХ.
 
@@ -69,7 +76,9 @@ def design_linear_phase_fir_ls(numtaps, fs, bands_2d, desired_2d, grid=30001, ba
     w = np.zeros_like(f, dtype=float)
 
     # Формируем кусочно-постоянную желаемую АЧХ и веса по полосам
-    for i, ((f1, f2), (d1, d2), bw) in enumerate(zip(bands_2d, desired_2d, band_weights)):
+    for i, ((f1, f2), (d1, d2), bw) in enumerate(
+        zip(bands_2d, desired_2d, band_weights)
+    ):
         if i < len(bands_2d) - 1:
             mask = (f >= f1) & (f < f2)
         else:
@@ -106,13 +115,7 @@ h_custom = design_linear_phase_fir_ls(
     NUMTAPS, FS, BANDS_2D, DESIRED_2D, grid=30001, band_weights=WEIGHTS
 )
 
-h_builtin = signal.firls(
-    NUMTAPS,
-    BANDS_2D,
-    DESIRED_2D,
-    weight=WEIGHTS,
-    fs=FS
-)
+h_builtin = signal.firls(NUMTAPS, BANDS_2D, DESIRED_2D, weight=WEIGHTS, fs=FS)
 
 # ------------------------------------------------------------
 # Сравнение
@@ -139,8 +142,12 @@ print(f"MSE амплитуды (собственная)          = {err_custom:.
 print(f"MSE амплитуды (встроенная)           = {err_builtin:.6e}")
 
 # Проверка симметрии и линейной ФЧХ
-print(f"Макс ошибка симметрии (собственная)  = {np.max(np.abs(h_custom - h_custom[::-1])):.3e}")
-print(f"Макс ошибка симметрии (встроенная)   = {np.max(np.abs(h_builtin - h_builtin[::-1])):.3e}")
+print(
+    f"Макс ошибка симметрии (собственная)  = {np.max(np.abs(h_custom - h_custom[::-1])):.3e}"
+)
+print(
+    f"Макс ошибка симметрии (встроенная)   = {np.max(np.abs(h_builtin - h_builtin[::-1])):.3e}"
+)
 
 # ------------------------------------------------------------
 # График

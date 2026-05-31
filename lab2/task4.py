@@ -1,5 +1,5 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from scipy import signal
 
 
@@ -34,9 +34,9 @@ def load_ecg(path: str):
     return t, x, fs
 
 
-def estimate_narrow_interference_freq(x: np.ndarray, fs: float,
-                                      fmin: float = 15.0,
-                                      fmax: float | None = None):
+def estimate_narrow_interference_freq(
+    x: np.ndarray, fs: float, fmin: float = 15.0, fmax: float | None = None
+):
     """Оценивает частоту узкополосной помехи в сигнале.
 
     Ищет максимум амплитудного спектра в заданном диапазоне частот.
@@ -73,8 +73,9 @@ def estimate_narrow_interference_freq(x: np.ndarray, fs: float,
     return float(freqs_sel[k])
 
 
-def remove_interference(x: np.ndarray, fs: float, f0: float,
-                        half_width_hz: float = 1.0):
+def remove_interference(
+    x: np.ndarray, fs: float, f0: float, half_width_hz: float = 1.0
+):
     """Удаляет узкополосную помеху из сигнала простым занулением спектральной полосы.
 
     Args:
@@ -100,7 +101,7 @@ def remove_interference(x: np.ndarray, fs: float, f0: float,
     k_right = min(len(X) - 1, k0 + half_width_bins)
 
     # Вырезаем проблемный участок
-    X[k_left:k_right + 1] = 0
+    X[k_left : k_right + 1] = 0
 
     y = np.fft.irfft(X, n=n)
     return y

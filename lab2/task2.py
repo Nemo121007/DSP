@@ -1,6 +1,5 @@
-import numpy as np
 import matplotlib.pyplot as plt
-
+import numpy as np
 
 # -----------------------------
 # Параметры дискретизации
@@ -11,7 +10,7 @@ N = int(2 * L / dt) + 1
 t = np.linspace(-L, L, N)
 
 # Достаточно плотная частотная сетка
-nfft = 2 ** 15
+nfft = 2**15
 
 
 # -----------------------------
@@ -26,7 +25,7 @@ def x1(t):
     Returns:
         float или np.ndarray: Значение сигнала в заданные моменты времени.
     """
-    return np.exp(-t**2)
+    return np.exp(-(t**2))
 
 
 def x2(t):
@@ -83,16 +82,14 @@ def X1_theory(omega):
     # Для гауссианы интегрируем на конечном интервале, т.к. exp(-t^2) быстро стремится к нулю
     t = np.linspace(-10, 10, 5000)
 
-    x = np.exp(-t**2)
+    x = np.exp(-(t**2))
 
     X = []
 
     for w in np.atleast_1d(omega):
         integrand = x * np.exp(-1j * w * t)
 
-        X.append(
-            np.trapezoid(integrand, t)
-        )
+        X.append(np.trapezoid(integrand, t))
 
     return np.array(X)
 
@@ -100,12 +97,12 @@ def X1_theory(omega):
 def X2_theory(omega):
     t = np.linspace(-1, 1, 5000)
 
-    x = np.cos(np.pi*t/2)
+    x = np.cos(np.pi * t / 2)
 
     X = []
 
     for w in np.atleast_1d(omega):
-        integrand = x * np.exp(-1j*w*t)
+        integrand = x * np.exp(-1j * w * t)
         X.append(np.trapezoid(integrand, t))
 
     return np.array(X)
@@ -139,22 +136,26 @@ print(f"Max abs error x2(t): {err2:.6e}")
 # Графики
 # -----------------------------
 plt.figure(figsize=(10, 4))
-plt.plot(omega1[m1], np.abs(X1_num[m1]), label=r'Численно: $|\mathrm{FFT}|\cdot \Delta t$')
-plt.plot(omega1[m1], np.abs(X1_th[m1]), '--', label='Теория')
-plt.title(r'Сигнал $x_1(t)=e^{-t^2}$')
-plt.xlabel(r'$\omega$')
-plt.ylabel(r'$|X(\omega)|$')
+plt.plot(
+    omega1[m1], np.abs(X1_num[m1]), label=r"Численно: $|\mathrm{FFT}|\cdot \Delta t$"
+)
+plt.plot(omega1[m1], np.abs(X1_th[m1]), "--", label="Теория")
+plt.title(r"Сигнал $x_1(t)=e^{-t^2}$")
+plt.xlabel(r"$\omega$")
+plt.ylabel(r"$|X(\omega)|$")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
 plt.show()
 
 plt.figure(figsize=(10, 4))
-plt.plot(omega2[m2], np.abs(X2_num[m2]), label=r'Численно: $|\mathrm{FFT}|\cdot \Delta t$')
-plt.plot(omega2[m2], np.abs(X2_th[m2]), '--', label='Теория')
-plt.title(r'Сигнал $x_2(t)=\cos(\pi t/2),\ |t|\leq 1$')
-plt.xlabel(r'$\omega$')
-plt.ylabel(r'$|X(\omega)|$')
+plt.plot(
+    omega2[m2], np.abs(X2_num[m2]), label=r"Численно: $|\mathrm{FFT}|\cdot \Delta t$"
+)
+plt.plot(omega2[m2], np.abs(X2_th[m2]), "--", label="Теория")
+plt.title(r"Сигнал $x_2(t)=\cos(\pi t/2),\ |t|\leq 1$")
+plt.xlabel(r"$\omega$")
+plt.ylabel(r"$|X(\omega)|$")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()

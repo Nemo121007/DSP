@@ -196,11 +196,11 @@ def ekf_step(
         H_list.append(H_i)
 
     # Обобщённый вектор измерений и предсказаний
-    z = np.concatenate(z_list)          # shape: (2 * m,)
-    z_pred = np.concatenate(z_pred_list) # shape: (2 * m,)
+    z = np.concatenate(z_list)  # shape: (2 * m,)
+    z_pred = np.concatenate(z_pred_list)  # shape: (2 * m,)
 
     # Обобщённая матрица Якобиана
-    H = np.vstack(H_list)               # shape: (2 * m, 3)
+    H = np.vstack(H_list)  # shape: (2 * m, 3)
 
     # Инновация
     innovation = z - z_pred

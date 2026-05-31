@@ -1,6 +1,6 @@
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import wavfile
-import matplotlib.pyplot as plt
 
 
 def wrap_phase(phi: np.ndarray) -> np.ndarray:
@@ -17,10 +17,10 @@ def wrap_phase(phi: np.ndarray) -> np.ndarray:
 
 def bits_to_phases(bits: np.ndarray) -> np.ndarray:
     """Преобразует биты в соответствующие начальные фазы.
-    
+
     0 -> +pi/2
     1 -> -pi/2
-    
+
     Args:
         bits (np.ndarray): Массив битов.
 
@@ -76,7 +76,9 @@ def normalize_audio_to_float(audio: np.ndarray):
     return audio_f, orig_dtype, scale
 
 
-def denormalize_audio_from_float(audio_f: np.ndarray, orig_dtype: np.dtype) -> np.ndarray:
+def denormalize_audio_from_float(
+    audio_f: np.ndarray, orig_dtype: np.dtype
+) -> np.ndarray:
     """Возвращает нормализованное аудио к исходному типу данных.
 
     Args:
@@ -95,7 +97,9 @@ def denormalize_audio_from_float(audio_f: np.ndarray, orig_dtype: np.dtype) -> n
     return audio_f.astype(orig_dtype)
 
 
-def phase_coding_encode_channel(x: np.ndarray, bits: np.ndarray, n_segments: int) -> np.ndarray:
+def phase_coding_encode_channel(
+    x: np.ndarray, bits: np.ndarray, n_segments: int
+) -> np.ndarray:
     """Встраивает информацию в один канал аудио методом фазового кодирования.
 
     Args:
@@ -152,7 +156,7 @@ def phase_coding_encode_channel(x: np.ndarray, bits: np.ndarray, n_segments: int
 
     m = len(bits)
     if m > 0:
-        phases_tilde[0, 1:1 + m] = msg_phases
+        phases_tilde[0, 1 : 1 + m] = msg_phases
 
     for i in range(1, n_segments):
         delta_phi = wrap_phase(phases[i] - phases[i - 1])
@@ -164,7 +168,9 @@ def phase_coding_encode_channel(x: np.ndarray, bits: np.ndarray, n_segments: int
     return x_tilde_segments.reshape(-1)[:n_samples]
 
 
-def phase_coding_decode_channel(x_stego: np.ndarray, n_segments: int, message_len: int) -> np.ndarray:
+def phase_coding_decode_channel(
+    x_stego: np.ndarray, n_segments: int, message_len: int
+) -> np.ndarray:
     """Извлечение сообщения из одного канала (фазовое декодирование).
 
     Args:
@@ -210,7 +216,7 @@ def phase_coding_decode_channel(x_stego: np.ndarray, n_segments: int, message_le
             f"message_len={message_len} превышает допустимый максимум {max_embed_bits}."
         )
 
-    encoded_phases = phase_0[1:1 + message_len]
+    encoded_phases = phase_0[1 : 1 + message_len]
     return phases_to_bits(encoded_phases)
 
 
@@ -242,7 +248,9 @@ def phase_coding_encode(audio: np.ndarray, bits, n_segments: int) -> np.ndarray:
     return np.stack(channels, axis=1)
 
 
-def phase_coding_decode(audio_stego: np.ndarray, n_segments: int, message_len: int) -> np.ndarray:
+def phase_coding_decode(
+    audio_stego: np.ndarray, n_segments: int, message_len: int
+) -> np.ndarray:
     """Извлекает битовую последовательность из скрытого аудио (mono или multi-channel).
 
     Для стерео или многоканального аудио извлекает сообщение из первого канала.
@@ -267,7 +275,9 @@ def phase_coding_decode(audio_stego: np.ndarray, n_segments: int, message_len: i
     return phase_coding_decode_channel(audio_stego[:, 0], n_segments, message_len)
 
 
-def write_wav(path: str, fs: int, audio_f: np.ndarray, orig_dtype: np.dtype, scale: float) -> None:
+def write_wav(
+    path: str, fs: int, audio_f: np.ndarray, orig_dtype: np.dtype, scale: float
+) -> None:
     """Сохраняет вещественный массив аудио в WAV файл с преобразованием к исходному формату.
 
     Args:
@@ -312,7 +322,9 @@ if __name__ == "__main__":
     n_segments = 32
 
     stego = phase_coding_encode(audio_f, bits, n_segments=n_segments)
-    recovered_bits = phase_coding_decode(stego, n_segments=n_segments, message_len=len(bits))
+    recovered_bits = phase_coding_decode(
+        stego, n_segments=n_segments, message_len=len(bits)
+    )
 
     recovered_message = "".join(map(str, recovered_bits.tolist()))
 
@@ -333,7 +345,7 @@ if __name__ == "__main__":
     plt.subplot(2, 1, 1)
     samples_to_plot = 1000
     plt.plot(audio_f[:samples_to_plot], label="Оригинал", alpha=0.7)
-    plt.plot(stego[:samples_to_plot], label="Стего", alpha=0.7, linestyle='--')
+    plt.plot(stego[:samples_to_plot], label="Стего", alpha=0.7, linestyle="--")
     plt.title("Сравнение формы сигнала (первые 1000 сэмплов)")
     plt.xlabel("Сэмплы")
     plt.ylabel("Амплитуда")
@@ -342,17 +354,19 @@ if __name__ == "__main__":
     # 2. Сравнение фаз в первом сегменте (где спрятаны биты)
     n_samples = len(audio_f)
     segment_len = int(np.ceil(n_samples / n_segments))
-    
+
     orig_segment0 = audio_f[:segment_len]
     stego_segment0 = stego[:segment_len]
-    
+
     orig_phase0 = np.angle(np.fft.rfft(orig_segment0))
     stego_phase0 = np.angle(np.fft.rfft(stego_segment0))
-    
+
     plt.subplot(2, 1, 2)
     x_bins = np.arange(1, len(bits) + 1)
-    plt.plot(x_bins, orig_phase0[1:len(bits)+1], 'o-', label="Исходная фаза")
-    plt.plot(x_bins, stego_phase0[1:len(bits)+1], 's-', label="Фаза стего (сообщение)")
+    plt.plot(x_bins, orig_phase0[1 : len(bits) + 1], "o-", label="Исходная фаза")
+    plt.plot(
+        x_bins, stego_phase0[1 : len(bits) + 1], "s-", label="Фаза стего (сообщение)"
+    )
     plt.title(f"Сравнение фазы для {len(bits)} частотных бинов")
     plt.xlabel("Индекс частотного бина")
     plt.ylabel("Фаза (радианы)")
@@ -360,4 +374,4 @@ if __name__ == "__main__":
     plt.xticks(x_bins)
 
     plt.tight_layout()
-    plt.show()    
+    plt.show()

@@ -54,7 +54,7 @@ def skew(a: np.ndarray) -> np.ndarray:
 def quat_mul(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
     """
     Выполняет умножение двух кватернионов.
-    
+
     Args:
         q1 (np.ndarray): Первый кватернион [w, x, y, z].
         q2 (np.ndarray): Второй кватернион [w, x, y, z].
@@ -70,7 +70,7 @@ def quat_mul(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
             w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
             w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
             w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
-            ],
+        ],
         dtype=float,
     )
 
@@ -78,7 +78,7 @@ def quat_mul(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
 def quat_exp(theta: np.ndarray) -> np.ndarray:
     """
     Вычисляет экспоненту от вектора угла поворота, возвращая кватернион.
-    
+
     Args:
         theta (np.ndarray): Вектор угла поворота (3,) (ось поворота, умноженная на угол).
 
@@ -95,7 +95,7 @@ def quat_exp(theta: np.ndarray) -> np.ndarray:
 def quat_to_R(q: np.ndarray) -> np.ndarray:
     """
     Преобразует кватернион в матрицу поворота (косинусов направлений).
-    
+
     Args:
         q (np.ndarray): Кватернион [w, x, y, z].
 
@@ -109,17 +109,17 @@ def quat_to_R(q: np.ndarray) -> np.ndarray:
                 2 * q0 * q0 - 1 + 2 * q1 * q1,
                 2 * q1 * q2 - 2 * q0 * q3,
                 2 * q1 * q3 + 2 * q0 * q2,
-                ],
+            ],
             [
                 2 * q1 * q2 + 2 * q0 * q3,
                 2 * q0 * q0 - 1 + 2 * q2 * q2,
                 2 * q2 * q3 - 2 * q0 * q1,
-                ],
+            ],
             [
                 2 * q1 * q3 - 2 * q0 * q2,
                 2 * q2 * q3 + 2 * q0 * q1,
                 2 * q0 * q0 - 1 + 2 * q3 * q3,
-                ],
+            ],
         ],
         dtype=float,
     )
@@ -131,7 +131,7 @@ def quat_to_R(q: np.ndarray) -> np.ndarray:
 def load_data(path: str | Path) -> Dict[str, Any]:
     """
     Загружает данные из pickle файла.
-    
+
     Args:
         path (str | Path): Путь к файлу данных (.pkl).
 
@@ -155,7 +155,7 @@ def load_data(path: str | Path) -> Dict[str, Any]:
 # Prepare sequences
 # =========================
 def prepare_sequences(
-        data: Dict[str, Any],
+    data: Dict[str, Any],
 ) -> Tuple[
     List[Tuple[float, np.ndarray, np.ndarray]],
     List[Tuple[float, np.ndarray]],
@@ -163,7 +163,7 @@ def prepare_sequences(
 ]:
     """
     Подготавливает последовательности измерений для подавления в фильтр.
-    
+
     Args:
         data (Dict[str, Any]): Исходный словарь данных.
 
@@ -205,9 +205,10 @@ def prepare_sequences(
 # =========================
 class ESKF:
     """
-    Класс, реализующий фильтр Калмана с состояниями ошибки (Error-State Kalman Filter) 
+    Класс, реализующий фильтр Калмана с состояниями ошибки (Error-State Kalman Filter)
     для объединения данных IMU, GNSS и LiDAR.
     """
+
     def __init__(self, p0: np.ndarray, v0: np.ndarray, q0: np.ndarray) -> None:
         self.p: np.ndarray = p0.astype(float).copy()
         self.v: np.ndarray = v0.astype(float).copy()
@@ -217,7 +218,7 @@ class ESKF:
     def predict(self, f: np.ndarray, w: np.ndarray, dt: float) -> None:
         """
         Шаг предсказания (Prediction step) ESKF на основе данных IMU.
-        
+
         Args:
             f (np.ndarray): Измерения акселерометра (3,).
             w (np.ndarray): Измерения гироскопа (3,).
@@ -277,7 +278,7 @@ class ESKF:
     def update(self, z: np.ndarray, R_meas: np.ndarray) -> None:
         """
         Шаг обновления (Update step) ESKF для одного типа измерений по позиции.
-        
+
         Args:
             z (np.ndarray): Вектор измерений позиции (3,).
             R_meas (np.ndarray): Матрица ковариации шума измерений формы (3, 3).
@@ -312,11 +313,15 @@ class ESKF:
         self.P = (np.eye(9) - K @ H) @ self.P
 
     def update_combined(
-            self, z_gnss: np.ndarray, z_lidar: np.ndarray, R_gnss: np.ndarray, R_lidar: np.ndarray
+        self,
+        z_gnss: np.ndarray,
+        z_lidar: np.ndarray,
+        R_gnss: np.ndarray,
+        R_lidar: np.ndarray,
     ) -> None:
         """
         Комбинированный шаг обновления ESKF, использующий одновременно измерения от GNSS и LiDAR.
-        
+
         Args:
             z_gnss (np.ndarray): Измерения позиции от GNSS (3,).
             z_lidar (np.ndarray): Измерения позиции от LiDAR (3,).
@@ -376,7 +381,7 @@ class ESKF:
 def run_filter(data: Dict[str, Any]) -> np.ndarray:
     """
     Запускает процесс фильтрации (ESKF) по заданным данным.
-    
+
     Args:
         data (Dict[str, Any]): Подготовленный словарь с данными (IMU, GNSS, LiDAR, GT).
 
@@ -411,7 +416,9 @@ def run_filter(data: Dict[str, Any]) -> np.ndarray:
 
         # Проверяем наличие измерений
         has_gnss = gnss_idx < len(obs_gnss) and abs(obs_gnss[gnss_idx][0] - t) < EPS
-        has_lidar = lidar_idx < len(obs_lidar) and abs(obs_lidar[lidar_idx][0] - t) < EPS
+        has_lidar = (
+            lidar_idx < len(obs_lidar) and abs(obs_lidar[lidar_idx][0] - t) < EPS
+        )
 
         if has_gnss and has_lidar:
             # Логика объединения (combined update)
@@ -437,7 +444,9 @@ def run_filter(data: Dict[str, Any]) -> np.ndarray:
 
         traj.append(eskf.p.copy())
 
-    print(f"count_combine: {count_combine}, count_gnss: {count_gnss}, count_lidar: {count_lidar}")
+    print(
+        f"count_combine: {count_combine}, count_gnss: {count_gnss}, count_lidar: {count_lidar}"
+    )
     return np.array(traj)
 
 

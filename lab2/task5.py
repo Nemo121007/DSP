@@ -1,6 +1,6 @@
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import wavfile
-import matplotlib.pyplot as plt
 
 
 def inverse_quarter_permutation_spectrum(x: np.ndarray) -> np.ndarray:
@@ -14,7 +14,7 @@ def inverse_quarter_permutation_spectrum(x: np.ndarray) -> np.ndarray:
 
     Returns:
         np.ndarray: Восстановленный сигнал во временной области.
-        
+
     Raises:
         ValueError: Если длина сигнала не кратна 4.
     """
@@ -33,9 +33,9 @@ def inverse_quarter_permutation_spectrum(x: np.ndarray) -> np.ndarray:
         )
 
     q1 = X[:n4]
-    q2 = X[n4:2*n4]
-    q3 = X[2*n4:3*n4]
-    q4 = X[3*n4:]
+    q2 = X[n4 : 2 * n4]
+    q3 = X[2 * n4 : 3 * n4]
+    q4 = X[3 * n4 :]
 
     # Обратная перестановка к [C B D A]
     X_restored = np.concatenate([q4, q2, q1, q3])
@@ -49,7 +49,7 @@ def inverse_quarter_permutation_spectrum(x: np.ndarray) -> np.ndarray:
 def save_wav_like_original(path_in: str, path_out: str):
     """Считывает WAV файл, восстанавливает его спектр и сохраняет в новый файл.
 
-    Поддерживает обработку как mono, так и stereo файлов. Сохраняет 
+    Поддерживает обработку как mono, так и stereo файлов. Сохраняет
     исходный тип данных аудио.
 
     Args:
@@ -106,32 +106,32 @@ def plot_spectra(original_data, restored_data, fs):
         rest_channel = restored_data
 
     N = len(orig_channel)
-    
+
     # Вычисляем спектры
     X_orig = np.fft.fft(orig_channel)
     X_rest = np.fft.fft(rest_channel)
-    
+
     # Вычисляем частоты и делаем сдвиг для отображения [-fs/2, fs/2]
-    freqs = np.fft.fftshift(np.fft.fftfreq(N, 1/fs))
+    freqs = np.fft.fftshift(np.fft.fftfreq(N, 1 / fs))
     mag_orig = np.abs(np.fft.fftshift(X_orig))
     mag_rest = np.abs(np.fft.fftshift(X_rest))
-    
+
     plt.figure(figsize=(12, 8))
-    
+
     plt.subplot(2, 1, 1)
-    plt.plot(freqs, mag_orig, color='red')
-    plt.title('Спектр амплитуд ДО восстановления')
-    plt.xlabel('Частота (Гц)')
-    plt.ylabel('Амплитуда')
+    plt.plot(freqs, mag_orig, color="red")
+    plt.title("Спектр амплитуд ДО восстановления")
+    plt.xlabel("Частота (Гц)")
+    plt.ylabel("Амплитуда")
     plt.grid(True)
-    
+
     plt.subplot(2, 1, 2)
-    plt.plot(freqs, mag_rest, color='green')
-    plt.title('Спектр амплитуд ПОСЛЕ восстановления')
-    plt.xlabel('Частота (Гц)')
-    plt.ylabel('Амплитуда')
+    plt.plot(freqs, mag_rest, color="green")
+    plt.title("Спектр амплитуд ПОСЛЕ восстановления")
+    plt.xlabel("Частота (Гц)")
+    plt.ylabel("Амплитуда")
     plt.grid(True)
-    
+
     plt.tight_layout()
     plt.show()
 

@@ -1,17 +1,24 @@
 from pathlib import Path
 
-import numpy as np
-from scipy.io import wavfile
-from scipy import signal
 import matplotlib.pyplot as plt
-
+import numpy as np
+from scipy import signal
+from scipy.io import wavfile
 
 # =========================
 # Helpers
 # =========================
 
+
 def to_float32_audio(x: np.ndarray) -> np.ndarray:
-    """Convert PCM audio to float32 in [-1, 1]."""
+    """Конвертирует PCM-аудио в формат float32 в диапазоне [-1, 1].
+
+    Args:
+        x (np.ndarray): Входной аудиосигнал.
+
+    Returns:
+        np.ndarray: Нормализованный аудиосигнал в формате float32.
+    """
     if np.issubdtype(x.dtype, np.integer):
         info = np.iinfo(x.dtype)
         x = x.astype(np.float32) / max(abs(info.min), info.max)
@@ -21,22 +28,44 @@ def to_float32_audio(x: np.ndarray) -> np.ndarray:
 
 
 def normalize_audio(x: np.ndarray) -> np.ndarray:
-    """Normalize audio to avoid clipping."""
+    """Нормализует аудиосигнал для предотвращения клиппинга.
+
+    Args:
+        x (np.ndarray): Входной аудиосигнал.
+
+    Returns:
+        np.ndarray: Нормализованный аудиосигнал с максимальной амплитудой 0.98.
+    """
     peak = np.max(np.abs(x))
     if peak < 1e-12:
         return x
     return x / peak * 0.98
 
 
-def design_bandpass_remez(fs: int,
-                          f1: float = 300.0,
-                          f2: float = 3000.0,
-                          transition: float = 150.0,
-                          numtaps: int = 401) -> np.ndarray:
-    """
-    Parks–McClellan band-pass FIR.
-    Passband: [f1, f2]
-    Stopbands: [0, f1-transition] and [f2+transition, fs/2]
+def design_bandpass_remez(
+    fs: int,
+    f1: float = 300.0,
+    f2: float = 3000.0,
+    transition: float = 150.0,
+    numtaps: int = 401,
+) -> np.ndarray:
+    """Проектирует полосовой КИХ-фильтр методом Паркса-Макклеллана.
+
+    Полоса пропускания: [f1, f2].
+    Полосы подавления: [0, f1 - transition] и [f2 + transition, fs/2].
+
+    Args:
+        fs (int): Частота дискретизации в Гц.
+        f1 (float, optional): Нижняя граница полосы пропускания в Гц. По умолчанию 300.0.
+        f2 (float, optional): Верхняя граница полосы пропускания в Гц. По умолчанию 3000.0.
+        transition (float, optional): Ширина переходной полосы в Гц. По умолчанию 150.0.
+        numtaps (int, optional): Порядок фильтра (число коэффициентов). По умолчанию 401.
+
+    Returns:
+        np.ndarray: Коэффициенты спроектированного КИХ-фильтра.
+
+    Raises:
+        ValueError: Если заданы некорректные границы полос.
     """
     nyq = fs / 2.0
     a = max(0.0, f1 - transition)
@@ -50,31 +79,49 @@ def design_bandpass_remez(fs: int,
     return taps.astype(np.float64)
 
 
-def design_hilbert_remez(fs: int,
-                         passband_low: float = 300.0,
-                         passband_high: float = 3000.0,
-                         transition: float = 150.0,
-                         numtaps: int = 401) -> np.ndarray:
-    """
-    Parks–McClellan Hilbert transformer FIR.
-    It approximates the Hilbert transform on the speech band.
+def design_hilbert_remez(
+    fs: int, numtaps: int = 201, guard_hz: float = 200.0
+) -> np.ndarray:
+    """Проектирует широкополосный КИХ-преобразователь Гильберта методом Паркса-Макклеллана.
+
+    Полоса аппроксимации: [guard_hz, fs/2 - guard_hz].
+
+    Args:
+        fs (int): Частота дискретизации в Гц.
+        numtaps (int, optional): Порядок фильтра. По умолчанию 201.
+        guard_hz (float, optional): Защитный интервал по краям диапазона (в Гц). По умолчанию 200.0.
+
+    Returns:
+        np.ndarray: Коэффициенты преобразователя Гильберта.
+
+    Raises:
+        ValueError: Если частота дискретизации слишком мала для создания фильтра.
     """
     nyq = fs / 2.0
-    lo = max(1.0, passband_low - transition)
-    hi = min(nyq - 1.0, passband_high + transition)
-    if lo >= passband_low or passband_high >= hi:
-        raise ValueError("Invalid Hilbert passband edges.")
+    lo = guard_hz
+    hi = nyq - guard_hz
 
-    # For type='hilbert', desired amplitude is 1 in the approximation band.
-    taps = signal.remez(numtaps, [lo, hi], [1], type='hilbert', fs=fs)
+    if hi <= lo:
+        raise ValueError("Слишком маленькая частота дискретизации для Hilbert-фильтра.")
+
+    taps = signal.remez(
+        numtaps, [lo, hi], [1], type="hilbert", fs=fs, maxiter=100, grid_density=32
+    )
     return taps.astype(np.float64)
 
 
 def causal_fir(x: np.ndarray, h: np.ndarray) -> np.ndarray:
-    """
-    Causal FIR filtering with linear-phase delay compensation.
-    The filter itself is causal; we align the output by removing
-    the group delay and padding zeros at the end.
+    """Каузальная КИХ-фильтрация с компенсацией задержки линейной фазы.
+
+    Фильтр является каузальным, но выходной сигнал сдвигается для удаления
+    групповой задержки, а в конец добавляются нули.
+
+    Args:
+        x (np.ndarray): Входной сигнал.
+        h (np.ndarray): Коэффициенты каузального КИХ-фильтра.
+
+    Returns:
+        np.ndarray: Отфильтрованный сигнал с компенсированной задержкой.
     """
     y = signal.lfilter(h, [1.0], x)
     delay = (len(h) - 1) // 2
@@ -83,11 +130,23 @@ def causal_fir(x: np.ndarray, h: np.ndarray) -> np.ndarray:
     return y
 
 
-def invert_spectrum(x: np.ndarray, fs: int, fa: float,
-                    bp_taps: np.ndarray, h_taps: np.ndarray) -> np.ndarray:
-    """
-    Frequency inversion around fa:
-        y[n] = x[n] * cos(2π fa n/fs) + H{x}[n] * sin(2π fa n/fs)
+def invert_spectrum(
+    x: np.ndarray, fs: int, fa: float, bp_taps: np.ndarray, h_taps: np.ndarray
+) -> np.ndarray:
+    """Выполняет инверсию спектра вокруг несущей частоты fa.
+
+    Уравнение преобразования:
+    y[n] = x[n] * cos(2π fa n/fs) + H{x}[n] * sin(2π fa n/fs)
+
+    Args:
+        x (np.ndarray): Входной аудиосигнал.
+        fs (int): Частота дискретизации в Гц.
+        fa (float): Частота сдвига (несущая) в Гц.
+        bp_taps (np.ndarray): Коэффициенты полосового фильтра.
+        h_taps (np.ndarray): Коэффициенты преобразователя Гильберта.
+
+    Returns:
+        np.ndarray: Сигнал с инвертированным спектром.
     """
     x_bp = causal_fir(x, bp_taps)
     x_h = causal_fir(x_bp, h_taps)
@@ -102,6 +161,16 @@ def invert_spectrum(x: np.ndarray, fs: int, fa: float,
 
 
 def spectrum_db(x: np.ndarray, fs: int, nfft: int = 8192):
+    """Вычисляет амплитудный спектр сигнала в децибелах (дБ).
+
+    Args:
+        x (np.ndarray): Входной сигнал.
+        fs (int): Частота дискретизации в Гц.
+        nfft (int, optional): Размер БПФ (FFT). По умолчанию 8192.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Кортеж, содержащий массив частот и массив амплитуд в дБ.
+    """
     X = np.fft.rfft(x, n=nfft)
     f = np.fft.rfftfreq(nfft, d=1.0 / fs)
     mag = 20.0 * np.log10(np.maximum(np.abs(X), 1e-12))
@@ -112,7 +181,17 @@ def spectrum_db(x: np.ndarray, fs: int, nfft: int = 8192):
 # Main pipeline
 # =========================
 
+
 def main():
+    """Главная функция для выполнения полного цикла кодирования и декодирования.
+
+    Считывает исходный аудиофайл, проектирует фильтры, кодирует сигнал путем
+    частотной инверсии, затем декодирует обратно. Сохраняет результаты и строит графики для сравнения.
+
+    Raises:
+        FileNotFoundError: Если не найден входной файл test.wav.
+        ValueError: Если частота дискретизации слишком мала.
+    """
     in_path = Path("data files/test.wav")
     if not in_path.exists():
         raise FileNotFoundError("Не найден test.wav в текущей папке.")
@@ -141,10 +220,10 @@ def main():
 
     # FIR lengths: odd for linear-phase Hilbert transformer
     numtaps_bp = 401
-    numtaps_h = 401
+    numtaps_h = 201
 
-    bp_taps = design_bandpass_remez(fs, 300.0, 3000.0, transition=150.0, numtaps=numtaps_bp)
-    h_taps = design_hilbert_remez(fs, 300.0, 3000.0, transition=150.0, numtaps=numtaps_h)
+    bp_taps = design_bandpass_remez(fs, 300.0, 3000.0, transition=150.0, numtaps=401)
+    h_taps = design_hilbert_remez(fs, numtaps=numtaps_h, guard_hz=200.0)
 
     # Encode / decode
     encoded = invert_spectrum(x, fs, fa, bp_taps, h_taps)

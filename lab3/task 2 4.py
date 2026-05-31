@@ -1,5 +1,5 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from scipy import signal
 
 
@@ -23,10 +23,7 @@ def load_ecg(path: str):
 
 
 def estimate_narrow_interference_freq(
-    x: np.ndarray,
-    fs: float,
-    fmin: float = 15.0,
-    fmax: float | None = None
+    x: np.ndarray, fs: float, fmin: float = 15.0, fmax: float | None = None
 ):
     """Оценивает частоту узкополосной помехи по максимуму спектра."""
     x = x - np.mean(x)
@@ -49,7 +46,9 @@ def estimate_narrow_interference_freq(
     return float(freqs_sel[k])
 
 
-def design_fir_notch(fs: float, f0: float, half_width_hz: float = 0.5, numtaps: int = 1001):
+def design_fir_notch(
+    fs: float, f0: float, half_width_hz: float = 0.5, numtaps: int = 1001
+):
     """Проектирует линейный КИХ band-stop фильтр вокруг частоты f0.
 
     Args:
@@ -68,30 +67,19 @@ def design_fir_notch(fs: float, f0: float, half_width_hz: float = 0.5, numtaps: 
         raise ValueError("Некорректная режекторная полоса.")
 
     h = signal.firwin(
-        numtaps=numtaps,
-        cutoff=[f1, f2],
-        fs=fs,
-        pass_zero="bandstop",
-        window="hamming"
+        numtaps=numtaps, cutoff=[f1, f2], fs=fs, pass_zero="bandstop", window="hamming"
     )
     return h, (f1, f2)
 
 
 def remove_interference_fir(
-    x: np.ndarray,
-    fs: float,
-    f0: float,
-    half_width_hz: float = 0.5,
-    numtaps: int = 1001
+    x: np.ndarray, fs: float, f0: float, half_width_hz: float = 0.5, numtaps: int = 1001
 ):
     """Удаляет узкополосную помеху линейным КИХ-фильтром."""
     x = x - np.mean(x)
 
     h, (f1, f2) = design_fir_notch(
-        fs=fs,
-        f0=f0,
-        half_width_hz=half_width_hz,
-        numtaps=numtaps
+        fs=fs, f0=f0, half_width_hz=half_width_hz, numtaps=numtaps
     )
 
     # Zero-phase filtering: форма ЭКГ не сдвигается по времени.
@@ -173,11 +161,7 @@ f0 = estimate_narrow_interference_freq(x, fs)
 print(f"Оцененная частота помехи: {f0:.2f} Гц")
 
 x_clean, h, (f1, f2) = remove_interference_fir(
-    x,
-    fs,
-    f0=f0,
-    half_width_hz=1.5,
-    numtaps=1001
+    x, fs, f0=f0, half_width_hz=1.25, numtaps=1001
 )
 
 print(f"КИХ-режекция: [{f1:.2f}, {f2:.2f}] Гц")

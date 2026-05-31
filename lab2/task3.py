@@ -1,14 +1,14 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from scipy import signal
 from scipy.io import wavfile
 
 # =========================
 # Параметры
 # =========================
-cut_half_width_hz = 0.5   # половина ширины вырезаемой полосы, Гц
-search_from_hz = 1000.0    # с какой частоты искать помеху
-prominence_ratio = 0.05    # чувствительность поиска пика
+cut_half_width_hz = 0.5  # половина ширины вырезаемой полосы, Гц
+search_from_hz = 1000.0  # с какой частоты искать помеху
+prominence_ratio = 0.05  # чувствительность поиска пика
 
 # =========================
 # Загрузка и приведение к float
@@ -91,7 +91,7 @@ k_right = min(len(X) - 2, k_right)
 
 print(f"Вырезаем полосу: [{freqs[k_left]:.2f}, {freqs[k_right]:.2f}] Hz")
 
-X[k_left:k_right + 1] = 0.0
+X[k_left : k_right + 1] = 0.0
 
 # Обратное преобразование Фурье
 y = np.fft.irfft(X, n=len(x))
@@ -107,6 +107,7 @@ y_int16 = np.int16(np.clip(y, -1, 1) * 32767)
 wavfile.write("tune_filtered.wav", fs, y_int16)
 
 print("Сохранено: tune_filtered.wav")
+
 
 # =========================
 # Визуализация спектра до/после
@@ -125,6 +126,7 @@ def plot_spectrum(sig, fs, title):
     plt.xlim(0, fs / 2)
     plt.tight_layout()
     plt.show()
+
 
 plot_spectrum(x, fs, "Спектр до фильтрации")
 plot_spectrum(y, fs, "Спектр после фильтрации")
