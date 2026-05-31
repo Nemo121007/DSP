@@ -45,7 +45,7 @@ def estimate_narrow_interference_freq(x: np.ndarray, fs: float,
         x (np.ndarray): Входной сигнал.
         fs (float): Частота дискретизации.
         fmin (float, optional): Минимальная частота поиска в Гц. По умолчанию 15.0.
-        fmax (float | None, optional): Максимальная частота поиска в Гц. Если None, 
+        fmax (float | None, optional): Максимальная частота поиска в Гц. Если None,
             ограничивается частотой Найквиста или 120 Гц.
 
     Returns:
@@ -73,36 +73,9 @@ def estimate_narrow_interference_freq(x: np.ndarray, fs: float,
     return float(freqs_sel[k])
 
 
-def cut_band_linear_interpolate(X: np.ndarray, k0: int, half_width_bins: int = 100):
-    """Вырезает полосу из спектра участка с заменой на линейную интерполяцию.
-
-    Args:
-        X (np.ndarray): Комплексный спектр сигнала.
-        k0 (int): Индекс центра вырезаемой полосы.
-        half_width_bins (int, optional): Полуширина вырезаемой полосы в бинах. По умолчанию 100.
-
-    Returns:
-        np.ndarray: Модифицированный спектр.
-    """
-    X = X.copy()
-
-    k_left = max(1, k0 - half_width_bins)
-    k_right = min(len(X) - 2, k0 + half_width_bins)
-
-    left_val = X[k_left - 1]
-    right_val = X[k_right + 1]
-
-    # Линейная интерполяция комплексного спектра
-    for k in range(k_left, k_right + 1):
-        alpha = (k - k_left + 1) / (k_right - k_left + 2)
-        X[k] = (1 - alpha) * left_val + alpha * right_val
-
-    return X
-
-
 def remove_interference(x: np.ndarray, fs: float, f0: float,
                         half_width_hz: float = 1.0):
-    """Удаляет узкополосную помеху из сигнала.
+    """Удаляет узкополосную помеху из сигнала простым занулением спектральной полосы.
 
     Args:
         x (np.ndarray): Входной зашумленный сигнал.
@@ -111,7 +84,7 @@ def remove_interference(x: np.ndarray, fs: float, f0: float,
         half_width_hz (float, optional): Полуширина вырезаемой полосы в Гц. По умолчанию 1.0.
 
     Returns:
-        np.ndarray: Очищенный от помехи сигнал во временной области.
+        np.ndarray: Очищенный сигнал во временной области.
     """
     x = x - np.mean(x)
     n = len(x)
@@ -123,7 +96,11 @@ def remove_interference(x: np.ndarray, fs: float, f0: float,
     half_width_bins = max(1, int(round(half_width_hz / df)))
 
     k0 = int(np.argmin(np.abs(freqs - f0)))
-    X = cut_band_linear_interpolate(X, k0, half_width_bins=half_width_bins)
+    k_left = max(1, k0 - half_width_bins)
+    k_right = min(len(X) - 1, k0 + half_width_bins)
+
+    # Вырезаем проблемный участок
+    X[k_left:k_right + 1] = 0
 
     y = np.fft.irfft(X, n=n)
     return y
@@ -157,7 +134,7 @@ def plot_all(t, x_noisy, x_clean, fs, seconds_to_show=10.0):
         x_noisy (np.ndarray): Зашумленный сигнал.
         x_clean (np.ndarray): Очищенный сигнал.
         fs (float): Частота дискретизации.
-        seconds_to_show (float, optional): Длительность отображаемого участка 
+        seconds_to_show (float, optional): Длительность отображаемого участка
             во временной области (в секундах). По умолчанию 10.0.
     """
     n_show = min(len(x_noisy), int(seconds_to_show * fs))

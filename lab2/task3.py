@@ -4,6 +4,13 @@ from scipy import signal
 from scipy.io import wavfile
 
 # =========================
+# Параметры
+# =========================
+cut_half_width_hz = 0.5   # половина ширины вырезаемой полосы, Гц
+search_from_hz = 1000.0    # с какой частоты искать помеху
+prominence_ratio = 0.05    # чувствительность поиска пика
+
+# =========================
 # Загрузка и приведение к float
 # =========================
 fs, x = wavfile.read("data/tune.wav")
@@ -51,18 +58,17 @@ plt.tight_layout()
 plt.show()
 
 # =========================
-# Поиск узкополосной помехи по обычному FFT
+# Поиск узкополосной помехи по FFT
 # =========================
 X = np.fft.rfft(x)
 freqs = np.fft.rfftfreq(len(x), d=1 / fs)
 amp = np.abs(X)
 
-# Ищем самый сильный пик выше 1 кГц
-mask = freqs > 1000
+mask = freqs > search_from_hz
 freqs_hf = freqs[mask]
 amp_hf = amp[mask]
 
-peaks, props = signal.find_peaks(amp_hf, prominence=np.max(amp_hf) * 0.05)
+peaks, props = signal.find_peaks(amp_hf, prominence=np.max(amp_hf) * prominence_ratio)
 if len(peaks) == 0:
     raise RuntimeError("Не найден выраженный узкополосный пик.")
 
@@ -72,23 +78,20 @@ f0 = freqs_hf[best_peak]
 print(f"Обнаружена аномальная частота: {f0:.2f} Hz")
 
 # =========================
-# Вырезка и линейная аппроксимация в спектре
+# Простое вырезание полосы вокруг f0
 # =========================
-k0 = np.argmin(np.abs(freqs - f0))
+f_left = f0 - cut_half_width_hz
+f_right = f0 + cut_half_width_hz
 
-# Полуширина вырезаемого участка
-half_width_bins = 100
+k_left = np.searchsorted(freqs, f_left, side="left")
+k_right = np.searchsorted(freqs, f_right, side="right") - 1
 
-k_left = max(1, k0 - half_width_bins)
-k_right = min(len(X) - 2, k0 + half_width_bins)
+k_left = max(1, k_left)
+k_right = min(len(X) - 2, k_right)
 
-left_val = X[k_left - 1]
-right_val = X[k_right + 1]
+print(f"Вырезаем полосу: [{freqs[k_left]:.2f}, {freqs[k_right]:.2f}] Hz")
 
-# Линейная интерполяция комплексного спектра
-for k in range(k_left, k_right + 1):
-    alpha = (k - k_left + 1) / (k_right - k_left + 2)
-    X[k] = (1 - alpha) * left_val + alpha * right_val
+X[k_left:k_right + 1] = 0.0
 
 # Обратное преобразование Фурье
 y = np.fft.irfft(X, n=len(x))
@@ -96,23 +99,19 @@ y = np.fft.irfft(X, n=len(x))
 # =========================
 # Сохранение результата
 # =========================
+max_abs = np.max(np.abs(y))
+if max_abs > 0:
+    y = 0.98 * y / max_abs
+
 y_int16 = np.int16(np.clip(y, -1, 1) * 32767)
 wavfile.write("tune_filtered.wav", fs, y_int16)
 
 print("Сохранено: tune_filtered.wav")
 
-
 # =========================
 # Визуализация спектра до/после
 # =========================
 def plot_spectrum(sig, fs, title):
-    """Строит амплитудный спектр сигнала в децибелах.
-
-    Args:
-        sig (np.ndarray): Входной сигнал.
-        fs (int или float): Частота дискретизации.
-        title (str): Заголовок графика.
-    """
     X = np.fft.rfft(sig)
     freqs = np.fft.rfftfreq(len(sig), d=1 / fs)
     amp = np.abs(X)
@@ -126,7 +125,6 @@ def plot_spectrum(sig, fs, title):
     plt.xlim(0, fs / 2)
     plt.tight_layout()
     plt.show()
-
 
 plot_spectrum(x, fs, "Спектр до фильтрации")
 plot_spectrum(y, fs, "Спектр после фильтрации")
