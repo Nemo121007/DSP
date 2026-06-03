@@ -216,7 +216,7 @@ def phase_coding_decode_channel(
             f"message_len={message_len} превышает допустимый максимум {max_embed_bits}."
         )
 
-    encoded_phases = phase_0[1 : 1 + message_len]
+    encoded_phases = phase_0[1: 1 + message_len]
     return phases_to_bits(encoded_phases)
 
 
