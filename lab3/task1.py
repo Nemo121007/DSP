@@ -125,6 +125,14 @@ _, H_builtin = signal.freqz(h_builtin, worN=16384, fs=FS)
 
 
 def desired_response(freq_hz):
+    """
+
+    Args:
+        freq_hz:
+
+    Returns:
+
+    """
     d = np.zeros_like(freq_hz, dtype=float)
     d[(freq_hz >= 50) & (freq_hz <= 150)] = 2.0
     d[(freq_hz >= 350) & (freq_hz <= 750)] = 1.0
@@ -142,12 +150,8 @@ print(f"MSE амплитуды (собственная)          = {err_custom:.
 print(f"MSE амплитуды (встроенная)           = {err_builtin:.6e}")
 
 # Проверка симметрии и линейной ФЧХ
-print(
-    f"Макс ошибка симметрии (собственная)  = {np.max(np.abs(h_custom - h_custom[::-1])):.3e}"
-)
-print(
-    f"Макс ошибка симметрии (встроенная)   = {np.max(np.abs(h_builtin - h_builtin[::-1])):.3e}"
-)
+print(f"Макс ошибка симметрии (собственная)  = {np.max(np.abs(h_custom - h_custom[::-1])):.3e}")
+print(f"Макс ошибка симметрии (встроенная)   = {np.max(np.abs(h_builtin - h_builtin[::-1])):.3e}")
 
 # ------------------------------------------------------------
 # График

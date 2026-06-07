@@ -54,7 +54,6 @@ def estimate_narrow_interference_freq(
     Raises:
         RuntimeError: Если в заданном диапазоне нет данных.
     """
-    x = x - np.mean(x)
     if fmax is None:
         fmax = min(120.0, fs / 2 - 1.0)
 

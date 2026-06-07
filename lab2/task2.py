@@ -80,7 +80,7 @@ def X1_theory(omega):
 
     t = np.linspace(-10, 10, 5000)
 
-    x = np.exp(-(t**2))
+    x = x1(t)
 
     X = []
 
@@ -95,7 +95,7 @@ def X1_theory(omega):
 def X2_theory(omega):
     t = np.linspace(-1, 1, 5000)
 
-    x = np.cos(np.pi * t / 2)
+    x = x2(t)
 
     X = []
 

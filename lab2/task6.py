@@ -318,6 +318,7 @@ if __name__ == "__main__":
 
     message = "1011001110001011"
     bits = parse_bits(message)
+    # bits = np.random.randint(0, 2, size=2040)
 
     n_segments = 32
 
