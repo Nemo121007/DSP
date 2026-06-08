@@ -2,118 +2,136 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import signal
 
+# =========================
+# Загрузка ЭКГ из txt
+# =========================
+path = "data files/ecg.dat"
+data = np.loadtxt(path)
 
-def load_ecg(path: str):
-    """Загружает данные ЭКГ из текстового файла.
+if data.ndim != 2 or data.shape[1] < 2:
+    raise ValueError("Файл должен содержать минимум два столбца: время и сигнал.")
 
-    Ожидается, что файл содержит минимум два столбца: время и значение сигнала.
-    """
-    data = np.loadtxt(path)
+t = data[:, 0].astype(float)
+x = data[:, 1].astype(float)
 
-    if data.ndim != 2 or data.shape[1] < 2:
-        raise ValueError("Файл должен содержать минимум два столбца: время и сигнал.")
+dt = np.median(np.diff(t))
+fs = 1.0 / dt
 
-    t = data[:, 0].astype(float)
-    x = data[:, 1].astype(float)
+x = x - np.mean(x)
 
-    dt = np.median(np.diff(t))
-    fs = 1.0 / dt
+print(f"fs = {fs:.2f} Hz, duration = {len(x) / fs:.2f} s")
 
-    return t, x, fs
+# =========================
+# Короткий фрагмент сигнала
+# =========================
+dur = 10.0
+n_show = min(len(x), int(dur * fs))
+tt = t[:n_show]
+
+plt.figure(figsize=(14, 4))
+plt.plot(tt, x[:n_show])
+plt.title("ЭКГ: первые 10 с")
+plt.xlabel("Время, с")
+plt.ylabel("Амплитуда")
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# =========================
+# Спектр до фильтрации
+# =========================
+X = np.fft.rfft(x)
+freqs = np.fft.rfftfreq(len(x), d=1 / fs)
+amp = np.abs(X)
+
+plt.figure(figsize=(14, 4))
+plt.plot(freqs, 20 * np.log10(amp + 1e-12))
+plt.title("Спектр ЭКГ до фильтрации")
+plt.xlabel("Частота, Гц")
+plt.ylabel("Амплитуда, дБ")
+plt.grid(True)
+plt.xlim(0, min(120, fs / 2))
+plt.tight_layout()
+plt.show()
+
+# =========================
+# Поиск узкополосной помехи
+# =========================
+fmin = 15.0
+fmax = min(120.0, fs / 2 - 1.0)
+
+mask = (freqs >= fmin) & (freqs <= fmax)
+freqs_sel = freqs[mask]
+amp_sel = amp[mask]
+
+if len(amp_sel) == 0:
+    raise RuntimeError("В заданном диапазоне частот нет данных для поиска помехи.")
+
+peaks, props = signal.find_peaks(
+    amp_sel,
+    prominence=np.max(amp_sel) * 0.05
+)
+
+if len(peaks) == 0:
+    raise RuntimeError("Не найден выраженный узкополосный пик. Попробуйте другой критерий поиска.")
+
+best_peak = peaks[np.argmax(amp_sel[peaks])]
+f0 = float(freqs_sel[best_peak])
+
+print(f"Обнаруженная частота помехи: {f0:.2f} Hz")
+
+# =========================
+# Проектирование FIR band-stop фильтра
+# =========================
+bw_hz = 1.75
+f1 = max(0.0, f0 - bw_hz)
+f2 = min(fs / 2 - 1.0, f0 + bw_hz)
+
+if f2 <= f1:
+    raise ValueError("Некорректная режекторная полоса.")
+
+numtaps = 1001
+if numtaps % 2 == 0:
+    numtaps += 1
+
+h = signal.firwin(
+    numtaps=numtaps,
+    cutoff=[f1, f2],
+    fs=fs,
+    pass_zero="bandstop",
+    window="hamming"
+)
+
+sym_err = np.max(np.abs(h - h[::-1]))
+print(f"КИХ-режекция: [{f1:.2f}, {f2:.2f}] Hz")
+print(f"Длина FIR: {len(h)}")
+print(f"Макс. нарушение симметрии ИХ: {sym_err:.3e}")
+
+# =========================
+# Фильтрация
+# =========================
+# causal filtering
+y = signal.lfilter(h, [1.0], x)
+
+# Компенсация групповой задержки линейно-фазового FIR
+delay = (numtaps - 1) // 2
+y = np.roll(y, -delay)
+y[-delay:] = 0.0
 
 
-def estimate_narrow_interference_freq(
-    x: np.ndarray, fs: float, fmin: float = 15.0, fmax: float | None = None
-):
-    """Оценивает частоту узкополосной помехи по максимуму спектра."""
-    x = x - np.mean(x)
-
-    if fmax is None:
-        fmax = min(120.0, fs / 2 - 1.0)
-
-    n = len(x)
-    freqs = np.fft.rfftfreq(n, d=1 / fs)
-    amp = np.abs(np.fft.rfft(x))
-
-    mask = (freqs >= fmin) & (freqs <= fmax)
-    freqs_sel = freqs[mask]
-    amp_sel = amp[mask]
-
-    if len(amp_sel) == 0:
-        raise RuntimeError("В заданном диапазоне частот нет данных для поиска помехи.")
-
-    k = np.argmax(amp_sel)
-    return float(freqs_sel[k])
-
-
-def design_fir_notch(
-    fs: float, f0: float, half_width_hz: float = 0.5, numtaps: int = 1001
-):
-    """Проектирует линейный КИХ band-stop фильтр вокруг частоты f0.
-
-    Args:
-        fs: Частота дискретизации.
-        f0: Частота помехи.
-        half_width_hz: Полуширина режекторной полосы.
-        numtaps: Число коэффициентов FIR. Должно быть нечётным для симметричного типа I.
-    """
-    if numtaps % 2 == 0:
-        numtaps += 1
-
-    f1 = max(0.0, f0 - half_width_hz)
-    f2 = min(fs / 2 - 1e-6, f0 + half_width_hz)
-
-    if f2 <= f1:
-        raise ValueError("Некорректная режекторная полоса.")
-
-    h = signal.firwin(
-        numtaps=numtaps, cutoff=[f1, f2], fs=fs, pass_zero="bandstop", window="hamming"
-    )
-    return h, (f1, f2)
-
-
-def remove_interference_fir(
-    x: np.ndarray, fs: float, f0: float, half_width_hz: float = 0.5, numtaps: int = 1001
-):
-    """Удаляет узкополосную помеху линейным КИХ-фильтром."""
-    x = x - np.mean(x)
-
-    h, (f1, f2) = design_fir_notch(
-        fs=fs, f0=f0, half_width_hz=half_width_hz, numtaps=numtaps
-    )
-
-    # Zero-phase filtering: форма ЭКГ не сдвигается по времени.
-    y = signal.filtfilt(h, [1.0], x)
-
-    return y, h, (f1, f2)
-
-
-def spectrum_db(x: np.ndarray, fs: float):
-    """Амплитудный спектр в дБ."""
-    x = x - np.mean(x)
-    n = len(x)
+# =========================
+# Визуализация:
+# =========================
+def spectrum_db(sig: np.ndarray, fs: float):
+    sig = sig - np.mean(sig)
+    n = len(sig)
     f = np.fft.rfftfreq(n, d=1 / fs)
-    X = np.abs(np.fft.rfft(x)) / n
+    X = np.abs(np.fft.rfft(sig)) / n
     Xdb = 20 * np.log10(X + 1e-12)
     return f, Xdb
 
 
-def plot_filter_response(h: np.ndarray, fs: float):
-    """АЧХ FIR-фильтра."""
-    w, H = signal.freqz(h, worN=4096, fs=fs)
-
-    plt.figure(figsize=(14, 4))
-    plt.plot(w, 20 * np.log10(np.abs(H) + 1e-12))
-    plt.title("АЧХ линейного КИХ band-stop фильтра")
-    plt.xlabel("Частота, Гц")
-    plt.ylabel("Амплитуда, дБ")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-
 def plot_all(t, x_noisy, x_clean, fs, seconds_to_show=10.0):
-    """Сравнение сигнала до/после фильтрации и их спектров."""
     n_show = min(len(x_noisy), int(seconds_to_show * fs))
     tt = t[:n_show]
 
@@ -152,20 +170,18 @@ def plot_all(t, x_noisy, x_clean, fs, seconds_to_show=10.0):
     plt.show()
 
 
-path = "data files/ecg.dat"
+plot_all(t, x, y, fs, seconds_to_show=10.0)
 
-t, x, fs = load_ecg(path)
-x = x - np.mean(x)
+# =========================
+# АЧХ фильтра
+# =========================
+w, H = signal.freqz(h, worN=4096, fs=fs)
 
-f0 = estimate_narrow_interference_freq(x, fs)
-print(f"Оцененная частота помехи: {f0:.2f} Гц")
-
-x_clean, h, (f1, f2) = remove_interference_fir(
-    x, fs, f0=f0, half_width_hz=1.25, numtaps=1001
-)
-
-print(f"КИХ-режекция: [{f1:.2f}, {f2:.2f}] Гц")
-print(f"Длина FIR: {len(h)}")
-
-plot_filter_response(h, fs)
-plot_all(t, x, x_clean, fs, seconds_to_show=10.0)
+plt.figure(figsize=(14, 4))
+plt.plot(w, 20 * np.log10(np.abs(H) + 1e-12))
+plt.title("АЧХ линейного КИХ band-stop фильтра")
+plt.xlabel("Частота, Гц")
+plt.ylabel("Амплитуда, дБ")
+plt.grid(True)
+plt.tight_layout()
+plt.show()

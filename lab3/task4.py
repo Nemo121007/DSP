@@ -49,7 +49,7 @@ def design_bandpass_remez(
     transition: float = 150.0,
     numtaps: int = 401,
 ) -> np.ndarray:
-    """Проектирует полосовой КИХ-фильтр методом Паркса-Макклеллана.
+    """Проектирует полосовой КИХ-фильтр.
 
     Полоса пропускания: [f1, f2].
     Полосы подавления: [0, f1 - transition] и [f2 + transition, fs/2].
@@ -82,7 +82,7 @@ def design_bandpass_remez(
 def design_hilbert_remez(
     fs: int, numtaps: int = 201, guard_hz: float = 200.0
 ) -> np.ndarray:
-    """Проектирует широкополосный КИХ-преобразователь Гильберта методом Паркса-Макклеллана.
+    """Проектирует широкополосный КИХ-преобразователь.
 
     Полоса аппроксимации: [guard_hz, fs/2 - guard_hz].
 
@@ -92,7 +92,7 @@ def design_hilbert_remez(
         guard_hz (float, optional): Защитный интервал по краям диапазона (в Гц). По умолчанию 200.0.
 
     Returns:
-        np.ndarray: Коэффициенты преобразователя Гильберта.
+        np.ndarray: Коэффициенты преобразователя.
 
     Raises:
         ValueError: Если частота дискретизации слишком мала для создания фильтра.
@@ -199,7 +199,7 @@ def main():
     fs, x = wavfile.read(in_path)
     x = to_float32_audio(x)
 
-    # mono
+    # Моно
     if x.ndim == 2:
         x = x.mean(axis=1)
 
@@ -218,21 +218,21 @@ def main():
     # Берём середину допустимого интервала
     fa = 0.5 * (fa_min + fa_max)
 
-    # FIR lengths: odd for linear-phase Hilbert transformer
+    # FIR : odd for linear-phase Hilbert transformer
     numtaps_bp = 401
     numtaps_h = 201
 
-    bp_taps = design_bandpass_remez(fs, 300.0, 3000.0, transition=150.0, numtaps=401)
+    bp_taps = design_bandpass_remez(fs, 300.0, 3000.0, transition=150.0, numtaps=numtaps_bp)
     h_taps = design_hilbert_remez(fs, numtaps=numtaps_h, guard_hz=200.0)
 
-    # Encode / decode
+    # Шифрование/дешифрование
     encoded = invert_spectrum(x, fs, fa, bp_taps, h_taps)
     decoded = invert_spectrum(encoded, fs, fa, bp_taps, h_taps)
 
-    # Final speech band cleanup after decode
+    # Окончательная очистка
     decoded = causal_fir(decoded, bp_taps)
 
-    # Normalize and save
+    # Нормализация и сохранение
     encoded_out = normalize_audio(encoded)
     decoded_out = normalize_audio(decoded)
 
