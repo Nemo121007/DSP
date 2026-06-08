@@ -43,7 +43,7 @@ DESIRED_2D = np.array(
     dtype=float,
 )
 
-# Вес можно оставить единичным для чистого LS-сравнения
+# Вес единичный
 WEIGHTS = np.ones(len(BANDS_2D), dtype=float)
 
 
@@ -126,12 +126,12 @@ _, H_builtin = signal.freqz(h_builtin, worN=16384, fs=FS)
 
 def desired_response(freq_hz):
     """
-
+    Метод, задающий эталонные значения  АЧХ
     Args:
-        freq_hz:
+        freq_hz: Частотная сетка
 
     Returns:
-
+        Эталонная АЧХ
     """
     d = np.zeros_like(freq_hz, dtype=float)
     d[(freq_hz >= 50) & (freq_hz <= 150)] = 2.0
