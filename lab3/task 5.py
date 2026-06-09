@@ -315,41 +315,26 @@ def main():
     t = np.arange(n)
 
     plt.figure(figsize=(15, 10))
-
     plt.subplot(411)
-
     plt.plot(clean)
-
     plt.title("Эталонный сигнал")
-
     plt.grid()
 
     plt.subplot(412)
-
     plt.plot(corrupted)
-
     plt.title("Искажённый сигнал")
-
     plt.grid()
 
     plt.subplot(413)
-
     plt.plot(accel)
-
     plt.title("Акселерометр")
-
     plt.grid()
 
     plt.subplot(414)
-
     plt.plot(corrected)
-
     plt.title("Очищенный сигнал")
-
     plt.grid()
-
     plt.tight_layout()
-
     plt.show()
 
     # ==================================================
@@ -357,19 +342,12 @@ def main():
     # ==================================================
 
     plt.figure(figsize=(14, 5))
-
     plt.plot(clean, label="Эталон")
-
     plt.plot(corrupted, alpha=0.7, label="Искажённый")
-
     plt.plot(corrected, label="После NLMS")
-
     plt.legend()
-
     plt.grid()
-
     plt.title("Сравнение сигналов")
-
     plt.show()
 
 
