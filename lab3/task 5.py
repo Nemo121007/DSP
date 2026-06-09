@@ -37,17 +37,13 @@ def snr_db(clean, estimate):
     """
     clean = np.asarray(clean)
     estimate = np.asarray(estimate)
-
     noise = clean - estimate
-
     return 10 * np.log10(np.sum(clean**2) / (np.sum(noise**2) + 1e-12))
 
 
 # ==========================================================
 # Загрузка данных
 # ==========================================================
-
-
 def load_signal(path):
     """Загружает сигнал из текстового файла.
 
@@ -61,23 +57,17 @@ def load_signal(path):
     """
 
     arr = np.loadtxt(path)
-
     arr = np.asarray(arr)
-
     if arr.ndim == 0:
         return arr.reshape(1)
-
     if arr.ndim == 1:
         return arr.astype(float)
-
     return arr[:, -1].astype(float)
 
 
 # ==========================================================
 # Предобработка
 # ==========================================================
-
-
 def normalize(x):
     """Нормализует сигнал (вычитает среднее и делит на стандартное отклонение).
 
@@ -88,7 +78,6 @@ def normalize(x):
         np.ndarray: Нормализованный сигнал.
     """
     x = np.asarray(x)
-
     return (x - np.mean(x)) / (np.std(x) + 1e-12)
 
 
@@ -125,11 +114,8 @@ def estimate_lag(signal1, signal2):
     y = normalize(signal2)
 
     corr = correlate(x, y, mode="full")
-
     lags = correlation_lags(len(x), len(y), mode="full")
-
     lag = lags[np.argmax(np.abs(corr))]
-
     return int(lag)
 
 
@@ -150,21 +136,13 @@ def shift_signal(x, lag, target_len):
     x = np.asarray(x)
 
     if lag > 0:
-
         out = np.r_[np.zeros(lag), x]
-
         return out[:target_len]
-
     elif lag < 0:
-
         lag = -lag
-
         out = np.r_[x[lag:], np.zeros(lag)]
-
         return out[:target_len]
-
     else:
-
         return x[:target_len]
 
 
@@ -200,13 +178,9 @@ def leaky_nlms(desired, reference, n_taps=64, mu=0.01, leak=1e-4, eps=1e-8):
 
     desired = desired[:n]
     reference = reference[:n]
-
     weights = np.zeros(n_taps)
-
     buffer = np.zeros(n_taps)
-
     noise_est = np.zeros(n)
-
     cleaned = np.zeros(n)
 
     for k in range(n):
@@ -215,13 +189,9 @@ def leaky_nlms(desired, reference, n_taps=64, mu=0.01, leak=1e-4, eps=1e-8):
         buffer[0] = reference[k]
 
         noise_est[k] = np.dot(weights, buffer)
-
         cleaned[k] = desired[k] - noise_est[k]
-
         norm = np.dot(buffer, buffer)
-
         step = mu / (norm + eps)
-
         weights = (1 - leak) * weights + step * cleaned[k] * buffer
 
     return cleaned, noise_est, weights
@@ -259,21 +229,17 @@ def main():
     # -------------------------------------
 
     lag = estimate_lag(corrupted, accel)
-
     accel = shift_signal(accel, lag, n)
-
     print("Оценённый лаг:", lag)
 
     # -------------------------------------
     # Адаптивная фильтрация
     # -------------------------------------
-
     corrected, estimated_noise, weights = leaky_nlms(
         desired=corrupted, reference=accel, n_taps=128, mu=0.005, leak=1e-4
     )
 
     np.savetxt("CorrectedSignal.txt", corrected)
-
     print("Сохранено:", Path("CorrectedSignal.txt").resolve())
 
     # -------------------------------------
@@ -287,25 +253,16 @@ def main():
     corrected_eval = corrected[burn:]
 
     rmse_before = rmse(clean_eval, corrupted_eval)
-
     rmse_after = rmse(clean_eval, corrected_eval)
-
     snr_before = snr_db(clean_eval, corrupted_eval)
-
     snr_after = snr_db(clean_eval, corrected_eval)
 
     print()
-
     print("RMSE до:", rmse_before)
-
     print("RMSE после:", rmse_after)
-
     print()
-
     print("SNR до:", snr_before, "dB")
-
     print("SNR после:", snr_after, "dB")
-
     print("Прирост:", snr_after - snr_before, "dB")
 
     # ==================================================
