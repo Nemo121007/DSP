@@ -5,9 +5,20 @@ import numpy as np
 from scipy import signal
 from scipy.io import wavfile
 
-INPUT_PATH = Path(__file__).parent / "data files" / "test.wav"
-ENCODED_PATH = Path(__file__).parent / "data files" / "encoded.wav"
-DECODED_PATH = Path(__file__).parent / "data files" / "decoded.wav"
+
+# ============================================================
+# Настройки
+# ============================================================
+
+# Если скрипт запускается из PyCharm, __file__ обычно доступен.
+# Если нет (например, в интерактивной среде), берём текущую папку.
+BASE_DIR = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
+INPUT_PATH = BASE_DIR / "data files" / "test.wav"
+OUTPUT_DIR = BASE_DIR / "data files"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+ENCODED_PATH = OUTPUT_DIR / "encoded.wav"
+DECODED_PATH = OUTPUT_DIR / "decoded.wav"
 
 
 # ============================================================
@@ -16,19 +27,24 @@ DECODED_PATH = Path(__file__).parent / "data files" / "decoded.wav"
 
 def to_float32_audio(x: np.ndarray) -> np.ndarray:
     """
-    Переводит аудиоданные в float32 без нормализации амплитуды.
+    Переводит PCM-аудио в float32 в диапазоне [-1, 1].
     """
-    return x.astype(np.float32)
+    if np.issubdtype(x.dtype, np.integer):
+        info = np.iinfo(x.dtype)
+        x = x.astype(np.float32) / max(abs(info.min), info.max)
+    else:
+        x = x.astype(np.float32)
+    return x
 
 
-def to_int16_audio(x: np.ndarray) -> np.ndarray:
+def normalize_audio(x: np.ndarray) -> np.ndarray:
     """
-    Приводит сигнал к int16 для сохранения в WAV:
-    - округление до ближайшего целого,
-    - ограничение диапазона PCM,
-    - преобразование к int16.
+    Нормирует сигнал по максимуму, чтобы избежать клиппинга при сохранении.
     """
-    return np.clip(np.rint(x), -32768, 32767).astype(np.int16)
+    peak = np.max(np.abs(x))
+    if peak < 1e-12:
+        return x.astype(np.float32)
+    return (x / peak * 0.98).astype(np.float32)
 
 
 def choose_carrier(fs: int) -> float:
@@ -37,6 +53,8 @@ def choose_carrier(fs: int) -> float:
 
     Для речи 300–3000 Гц нужно:
         3000 < fa < fs/2 - 300
+
+    Для fs = 11025 Гц корректно подходит fa = 3500 Гц.
     """
     nyq = fs / 2.0
     preferred = 3500.0
@@ -151,6 +169,14 @@ def invert_spectrum(
 
     Формула:
         y[n] = x[n] * cos(2π fa n/fs) + H{x}[n] * sin(2π fa n/fs)
+
+    Сначала:
+        1) полосовая фильтрация речи,
+        2) получение квадратурной компоненты через Hilbert,
+        3) перенос спектра,
+        4) финальная полосовая очистка.
+
+    Затем компенсируется суммарная групповая задержка.
     """
     x_bp = fir_filter(x, bp_taps)
     x_h = fir_filter(x_bp, h_taps)
@@ -159,7 +185,7 @@ def invert_spectrum(
     c = np.cos(2.0 * np.pi * fa * n / fs)
     s = np.sin(2.0 * np.pi * fa * n / fs)
 
-    # При необходимости можно проверить альтернативный знак:
+    # Если понадобится, здесь можно проверить альтернативный знак:
     # y = x_bp * c - x_h * s
     y = x_bp * c + x_h * s
 
@@ -230,17 +256,18 @@ def main():
     encoded = invert_spectrum(x, fs, fa, bp_taps, h_taps)
     decoded = invert_spectrum(encoded, fs, fa, bp_taps, h_taps)
 
-    # Сохранение как int16 WAV без нормализации
-    encoded_out = to_int16_audio(encoded)
-    decoded_out = to_int16_audio(decoded)
+    # Нормализация для сохранения
+    encoded_out = normalize_audio(encoded)
+    decoded_out = normalize_audio(decoded)
 
-    wavfile.write(ENCODED_PATH, fs, encoded_out)
-    wavfile.write(DECODED_PATH, fs, decoded_out)
+    # Сохранение WAV
+    wavfile.write(ENCODED_PATH, fs, encoded_out.astype(np.float32))
+    wavfile.write(DECODED_PATH, fs, decoded_out.astype(np.float32))
 
     # Оценка качества восстановления
-    min_len = min(len(x), len(decoded))
+    min_len = min(len(x), len(decoded_out))
     x0 = x[:min_len]
-    d0 = decoded[:min_len]
+    d0 = decoded_out[:min_len]
 
     mse = np.mean((x0 - d0) ** 2)
     rmse = np.sqrt(mse)
@@ -261,6 +288,7 @@ def main():
     # Графики
     # ========================================================
 
+    # 1) АЧХ полосового фильтра и Hilbert-фильтра
     fb, mb, pb = freq_response(bp_taps, fs)
     fh, mh, ph = freq_response(h_taps, fs)
 
@@ -283,6 +311,7 @@ def main():
     plt.tight_layout()
     plt.show()
 
+    # 2) Фазовая характеристика фильтров
     plt.figure(figsize=(13, 8))
 
     plt.subplot(2, 1, 1)
@@ -302,12 +331,13 @@ def main():
     plt.tight_layout()
     plt.show()
 
+    # 3) Сравнение сигналов во времени
     t = np.arange(min_len) / fs
-    show_n = min(min_len, fs // 2)
+    show_n = min(min_len, fs // 2)  # первые 0.5 секунды
 
     plt.figure(figsize=(13, 7))
     plt.plot(t[:show_n], x0[:show_n], label="original")
-    plt.plot(t[:show_n], encoded[:show_n], label="encoded", alpha=0.8)
+    plt.plot(t[:show_n], encoded_out[:show_n], label="encoded", alpha=0.8)
     plt.plot(t[:show_n], d0[:show_n], label="decoded", alpha=0.8)
     plt.title("Сигналы во временной области")
     plt.xlabel("Time, s")
@@ -317,8 +347,9 @@ def main():
     plt.tight_layout()
     plt.show()
 
+    # 4) Сравнение спектров
     f1, m1 = spectrum_db(x0, fs)
-    f2, m2 = spectrum_db(encoded[:min_len], fs)
+    f2, m2 = spectrum_db(encoded_out[:min_len], fs)
     f3, m3 = spectrum_db(d0, fs)
 
     plt.figure(figsize=(13, 7))
