@@ -96,7 +96,7 @@ def left_shift_zeros(x: np.ndarray, n: int) -> np.ndarray:
 
 
 def total_delay(bp_taps: np.ndarray, h_taps: np.ndarray) -> int:
-    """Суммарная задержка тракта."""
+    """Суммарная задержка"""
     d_bp = (len(bp_taps) - 1) // 2
     d_h = (len(h_taps) - 1) // 2
     return 2 * d_bp + d_h
@@ -141,7 +141,7 @@ fs, x = wavfile.read(INPUT_PATH)
 x = pcm_to_float(x)
 
 if x.ndim == 2:
-        x = x.mean(axis=1)
+    x = x.mean(axis=1)
 
 fa = choose_carrier(fs)
 
@@ -162,13 +162,11 @@ d0 = decoded[:n]
 
 mse = np.mean((x0 - d0) ** 2)
 rmse = np.sqrt(mse)
-corr = np.corrcoef(x0, d0)[0, 1]
 
 print(f"fs = {fs} Hz")
 print(f"fa = {fa:.2f} Hz")
 print(f"MSE  = {mse:.6e}")
 print(f"RMSE = {rmse:.6e}")
-print(f"Corr = {corr:.6f}")
 
 # --------------------------------------------------------
 # Графики
@@ -217,8 +215,8 @@ plt.plot(t[:show_n], x0[:show_n], label="original")
 plt.plot(t[:show_n], encoded[:show_n], label="encoded", alpha=0.8)
 plt.plot(t[:show_n], d0[:show_n], label="decoded", alpha=0.8)
 plt.title("Сигналы во времени")
-plt.xlabel("s")
-plt.ylabel("Amplitude")
+plt.xlabel("Сек.")
+plt.ylabel("Амплитуда")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
@@ -234,8 +232,8 @@ plt.plot(f2, m2, label="encoded", alpha=0.8)
 plt.plot(f3, m3, label="decoded", alpha=0.8)
 plt.xlim(0, fs / 2)
 plt.title("Амплитудные спектры")
-plt.xlabel("Hz")
-plt.ylabel("dB")
+plt.xlabel("Гц.")
+plt.ylabel("Дб.")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
